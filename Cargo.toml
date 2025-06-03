@@ -2,11 +2,51 @@
 name = "mysql_user_crud"
 version = "0.1.0"
 edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A RESTful CRUD API for user management with MySQL"
 
 [dependencies]
+actix-web = "4.4.0"
 mysql = "24.0.0"
-dotenv = "0.15.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-actix-web = "4.11.0"
-env_logger = "0.10"
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+log = "0.4"
+thiserror = "1.0"
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+config = "0.13"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3           # 使用最高优化级别
+lto = true             # 启用链接时优化
+codegen-units = 1      # 使用单个代码生成单元以获得更好的优化
+panic = "abort"        # 在 panic 时直接中止，减少二进制大小
+strip = true           # 自动剥离符号信息
+debug = false          # 不包含调试信息
+
+[profile.release.package."*"]
+opt-level = 3          # 为所有依赖启用最高优化级别
+
+# 可选：添加基准测试配置
+[profile.bench]
+opt-level = 3
+debug = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+incremental = false
+
+# 可选：添加测试配置
+[profile.test]
+opt-level = 0
+debug = true
+debug-assertions = true
