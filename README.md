@@ -1,75 +1,245 @@
-# Rust MySQL User CRUD
+# MySQL User CRUD API
 
-这是一个使用 Rust 实现的简单 MySQL 用户管理系统，实现了基本的 CRUD（创建、读取、更新、删除）操作。
+这是一个基于 Rust 和 Actix-web 实现的用户管理 RESTful API 系统，提供用户的增删改查功能，支持分页查询。
 
-## 前置要求
+## 环境要求
 
-1. 安装 Rust 和 Cargo
-2. 安装 MySQL 服务器
-3. 创建测试数据库
+- Rust
+- MySQL
+- 环境变量配置（.env 文件）
 
-## 数据库设置
+## 配置说明
 
-1. 确保 MySQL 服务器正在运行
-2. 创建测试数据库：
-```sql
-CREATE DATABASE test_db;
+1. 创建 `.env` 文件并配置数据库连接信息：
+
+```env
+DATABASE_URL=mysql://username:password@localhost:3306/database_name
 ```
 
-## 配置
+2. 运行服务器：
 
-1. 修改 `.env` 文件中的数据库连接信息：
-```
-DATABASE_URL=mysql://用户名:密码@localhost:3306/test_db
-```
-
-## 运行程序
-
-1. 安装依赖并运行：
 ```bash
 cargo run
 ```
 
-## 功能说明
+默认服务器运行在 `http://localhost:8080`
 
-程序实现了以下功能：
+## API 端点
 
-1. 创建用户表（如果不存在）
-2. 创建新用户
-3. 获取所有用户
-4. 通过 ID 获取特定用户
-5. 更新用户信息
-6. 删除用户
+### 1. 获取用户列表（支持分页）
 
-## 代码结构
+```
+GET /api/users
+```
 
-- `src/main.rs`: 主程序文件，包含所有实现
-- `.env`: 数据库配置文件
-- `Cargo.toml`: 项目依赖配置
+查询参数：
+- `page`: 页码（可选，默认值：1）
+- `limit`: 每页数量（可选，默认值：10，最大值：100）
 
-## 使用示例
+示例请求：
+```bash
+# 使用默认分页参数
+curl http://localhost:8080/api/users
 
-程序运行后会自动执行一系列演示操作：
+# 自定义分页参数
+curl http://localhost:8080/api/users?page=2&limit=20
+```
 
-1. 创建一个新用户
-2. 显示所有用户
-3. 获取特定用户
-4. 更新用户信息
-5. 验证更新
-6. 删除用户
+成功响应：
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "username": "user1",
+      "email": "user1@example.com",
+      "age": 25
+    },
+    {
+      "id": 2,
+      "username": "user2",
+      "email": "user2@example.com",
+      "age": 30
+    }
+  ],
+  "pagination": {
+    "total": 50,
+    "total_pages": 5,
+    "current_page": 1,
+    "limit": 10,
+    "has_next": true,
+    "has_previous": false
+  }
+}
+```
+
+### 2. 创建新用户
+
+```
+POST /api/users
+```
+
+请求体：
+```json
+{
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "age": 25
+}
+```
+
+示例请求：
+```bash
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"newuser","email":"newuser@example.com","age":25}'
+```
+
+成功响应：
+```json
+{
+  "id": 3,
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "age": 25
+}
+```
+
+### 3. 获取特定用户
+
+```
+GET /api/users/{id}
+```
+
+示例请求：
+```bash
+curl http://localhost:8080/api/users/1
+```
+
+成功响应：
+```json
+{
+  "id": 1,
+  "username": "user1",
+  "email": "user1@example.com",
+  "age": 25
+}
+```
+
+### 4. 更新用户
+
+```
+PUT /api/users/{id}
+```
+
+请求体：
+```json
+{
+  "username": "updateduser",
+  "email": "updated@example.com",
+  "age": 26
+}
+```
+
+示例请求：
+```bash
+curl -X PUT http://localhost:8080/api/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{"username":"updateduser","email":"updated@example.com","age":26}'
+```
+
+成功响应：
+```json
+{
+  "id": 1,
+  "username": "updateduser",
+  "email": "updated@example.com",
+  "age": 26
+}
+```
+
+### 5. 删除用户
+
+```
+DELETE /api/users/{id}
+```
+
+示例请求：
+```bash
+curl -X DELETE http://localhost:8080/api/users/1
+```
+
+成功响应：
+- 状态码：204 No Content
+- 无响应体
 
 ## 错误处理
 
-如果遇到连接错误，请检查：
+API 使用统一的错误响应格式：
 
-1. MySQL 服务器是否正在运行
-2. `.env` 文件中的连接信息是否正确
-3. 数据库用户是否有正确的权限
+```json
+{
+  "error": "错误信息描述"
+}
+```
 
-## 扩展建议
+常见错误情况：
 
-1. 添加更多的用户字段
-2. 实现用户验证
-3. 添加查询过滤功能
-4. 实现批量操作
-5. 添加日志记录
+1. 分页参数无效：
+```bash
+# 无效的页码
+curl http://localhost:8080/api/users?page=0
+响应：{"error": "页码必须大于0"}
+
+# 过大的每页数量会自动调整为最大允许值(100)
+curl http://localhost:8080/api/users?limit=200
+```
+
+2. 用户名已存在：
+```bash
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"existing_user","email":"test@example.com","age":25}'
+响应：{"error": "用户名 'existing_user' 已存在"}
+```
+
+3. 用户不存在：
+```bash
+curl http://localhost:8080/api/users/999
+响应：{"error": "ID为999的用户不存在"}
+```
+
+4. 无效的输入数据：
+```bash
+# 空用户名
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"","email":"test@example.com","age":25}'
+响应：{"error": "用户名不能为空"}
+
+# 空邮箱
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"newuser","email":"","age":25}'
+响应：{"error": "邮箱不能为空"}
+```
+
+## 注意事项
+
+1. 分页参数限制：
+   - 页码(page)必须大于0
+   - 每页数量(limit)范围：1-100
+   - 超出范围的limit会自动调整到最近的有效值
+
+2. 用户名唯一性：
+   - 系统不允许重复的用户名
+   - 创建和更新用户时都会检查用户名唯一性
+
+3. 数据验证：
+   - 用户名和邮箱不能为空
+   - ID必须为正整数
+   - 年龄字段可选
+
+4. 错误处理：
+   - 所有错误响应都包含详细的错误信息
+   - 使用适当的HTTP状态码表示不同类型的错误
