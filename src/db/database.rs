@@ -11,6 +11,14 @@ pub struct Database {
     pool: Pool,
 }
 
+pub struct PaginatedUsers {
+    pub users: Vec<User>,
+    pub total: i64,
+    pub total_pages: i64,
+    pub current_page: i64,
+    pub limit: i64,
+}
+
 impl Database {
     pub fn new() -> Result<Self> {
         dotenv().ok();
@@ -48,6 +56,54 @@ impl Database {
         Ok(count.unwrap_or(0) > 0)
     }
 
+    // 获取分页用户列表
+    pub fn get_users_paginated(&self, page: i64, limit: i64) -> Result<PaginatedUsers> {
+        let mut conn = self.pool.get_conn()?;
+
+        // 获取总记录数
+        let total: i64 = conn
+            .query_first("SELECT COUNT(*) FROM users")?
+            .unwrap_or(0);
+
+        // 计算总页数
+        let total_pages = (total + limit - 1) / limit;
+        
+        // 确保页码在有效范围内
+        let current_page = if page <= 0 {
+            1
+        } else if page > total_pages {
+            total_pages.max(1) // 如果没有数据，至少返回第1页
+        } else {
+            page
+        };
+
+        // 计算偏移量
+        let offset = (current_page - 1) * limit;
+
+        // 获取当前页的用户数据
+        let users = conn.exec_map(
+            "SELECT id, username, email, age FROM users LIMIT :offset, :limit",
+            params! {
+                "offset" => offset,
+                "limit" => limit,
+            },
+            |(id, username, email, age)| User {
+                id: Some(id),
+                username,
+                email,
+                age,
+            },
+        )?;
+
+        Ok(PaginatedUsers {
+            users,
+            total,
+            total_pages,
+            current_page,
+            limit,
+        })
+    }
+
     // 创建新用户
     pub fn create_user(&self, user: &User) -> Result<u64> {
         let mut conn = self.pool.get_conn()?;
@@ -60,21 +116,6 @@ impl Database {
             },
         )?;
         Ok(conn.last_insert_id())
-    }
-
-    // 获取所有用户
-    pub fn get_all_users(&self) -> Result<Vec<User>> {
-        let mut conn = self.pool.get_conn()?;
-        let users = conn.query_map(
-            "SELECT id, username, email, age FROM users",
-            |(id, username, email, age)| User {
-                id: Some(id),
-                username,
-                email,
-                age,
-            },
-        )?;
-        Ok(users)
     }
 
     // 通过ID获取用户
