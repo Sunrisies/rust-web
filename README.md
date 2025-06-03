@@ -1,245 +1,216 @@
 # MySQL User CRUD API
 
-这是一个基于 Rust 和 Actix-web 实现的用户管理 RESTful API 系统，提供用户的增删改查功能，支持分页查询。
+这是一个使用 Rust 和 Actix-web 框架实现的 RESTful CRUD API 示例，用于用户管理系统。该项目展示了如何构建一个高性能、类型安全的 Web 服务，并与 MySQL 数据库进行交互。
 
-## 环境要求
+## 功能特点
 
-- Rust
-- MySQL
-- 环境变量配置（.env 文件）
+- RESTful API 设计
+- MySQL 数据库集成
+- 完整的 CRUD 操作
+- 分页查询支持
+- 错误处理和验证
+- Docker 支持
+- 性能优化配置
 
-## 配置说明
+## 技术栈
 
-1. 创建 `.env` 文件并配置数据库连接信息：
+- Rust 2021 Edition
+- Actix-web 4.4.0 (Web 框架)
+- MySQL 24.0.0 (数据库驱动)
+- Serde (序列化/反序列化)
+- Tokio (异步运行时)
+- Docker (容器化)
 
-```env
-DATABASE_URL=mysql://username:password@localhost:3306/database_name
+## 项目结构
+
+```
+mysql_user_crud/
+├── src/
+│   ├── api/                    # API 相关代码
+│   │   ├── handlers.rs         # 请求处理器
+│   │   ├── routes.rs           # 路由配置
+│   │   └── mod.rs             # 模块声明
+│   ├── db/                     # 数据库相关代码
+│   │   ├── database.rs         # 数据库操作
+│   │   └── mod.rs             # 模块声明
+│   ├── models/                 # 数据模型
+│   │   ├── user.rs            # 用户模型
+│   │   └── mod.rs             # 模块声明
+│   ├── lib.rs                  # 库入口
+│   └── main.rs                 # 应用入口
+├── Cargo.toml                  # 项目配置和依赖
+├── Dockerfile                  # Docker 配置
+├── build.sh                    # 构建脚本
+└── .env.test                   # 测试环境配置
 ```
 
-2. 运行服务器：
+## API 接口
 
+### 用户管理 API
+
+基础路径: `/api/users`
+
+| 方法   | 路径     | 描述         | 请求体                  | 响应                    |
+|--------|----------|--------------|------------------------|------------------------|
+| GET    | /        | 获取用户列表   | 查询参数: page, limit   | 分页用户列表             |
+| POST   | /        | 创建新用户     | 用户信息                | 创建的用户信息           |
+| GET    | /{id}    | 获取单个用户   | -                      | 用户信息                |
+| PUT    | /{id}    | 更新用户信息   | 更新的用户信息           | 更新后的用户信息         |
+| DELETE | /{id}    | 删除用户      | -                      | 204 No Content        |
+
+### 请求/响应示例
+
+#### 创建用户
+```http
+POST /api/users
+Content-Type: application/json
+
+{
+    "username": "john_doe",
+    "email": "john@example.com",
+    "age": 30
+}
+```
+
+#### 分页获取用户
+```http
+GET /api/users?page=1&limit=10
+```
+
+响应:
+```json
+{
+    "data": [...],
+    "pagination": {
+        "total": 100,
+        "total_pages": 10,
+        "current_page": 1,
+        "limit": 10,
+        "has_next": true,
+        "has_previous": false
+    }
+}
+```
+
+## 数据库设计
+
+用户表结构:
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
+    age INT
+);
+```
+
+## 快速开始
+
+### 本地开发
+
+1. 克隆项目:
 ```bash
+git clone <repository-url>
+cd mysql_user_crud
+```
+
+2. 设置环境变量:
+```bash
+cp .env.test .env
+# 编辑 .env 文件，设置数据库连接信息
+```
+
+3. 构建和运行:
+```bash
+cargo build
 cargo run
 ```
 
-默认服务器运行在 `http://localhost:8080`
+### Docker 部署
 
-## API 端点
-
-### 1. 获取用户列表（支持分页）
-
-```
-GET /api/users
-```
-
-查询参数：
-- `page`: 页码（可选，默认值：1）
-- `limit`: 每页数量（可选，默认值：10，最大值：100）
-
-示例请求：
+1. 构建镜像:
 ```bash
-# 使用默认分页参数
-curl http://localhost:8080/api/users
-
-# 自定义分页参数
-curl http://localhost:8080/api/users?page=2&limit=20
+docker build -t mysql_user_crud .
 ```
 
-成功响应：
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "username": "user1",
-      "email": "user1@example.com",
-      "age": 25
-    },
-    {
-      "id": 2,
-      "username": "user2",
-      "email": "user2@example.com",
-      "age": 30
-    }
-  ],
-  "pagination": {
-    "total": 50,
-    "total_pages": 5,
-    "current_page": 1,
-    "limit": 10,
-    "has_next": true,
-    "has_previous": false
-  }
-}
-```
-
-### 2. 创建新用户
-
-```
-POST /api/users
-```
-
-请求体：
-```json
-{
-  "username": "newuser",
-  "email": "newuser@example.com",
-  "age": 25
-}
-```
-
-示例请求：
+2. 运行容器:
 ```bash
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"username":"newuser","email":"newuser@example.com","age":25}'
+docker run -d \
+  -p 8080:8080 \
+  -e DATABASE_URL=mysql://username:password@host:3306/dbname \
+  mysql_user_crud
 ```
 
-成功响应：
-```json
-{
-  "id": 3,
-  "username": "newuser",
-  "email": "newuser@example.com",
-  "age": 25
-}
+## 性能优化
+
+项目包含多层面的性能优化：
+
+1. **编译优化**
+```toml
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
 ```
 
-### 3. 获取特定用户
+2. **Docker 优化**
+- 多阶段构建
+- 最小化基础镜像
+- UPX 压缩
 
-```
-GET /api/users/{id}
-```
-
-示例请求：
-```bash
-curl http://localhost:8080/api/users/1
-```
-
-成功响应：
-```json
-{
-  "id": 1,
-  "username": "user1",
-  "email": "user1@example.com",
-  "age": 25
-}
-```
-
-### 4. 更新用户
-
-```
-PUT /api/users/{id}
-```
-
-请求体：
-```json
-{
-  "username": "updateduser",
-  "email": "updated@example.com",
-  "age": 26
-}
-```
-
-示例请求：
-```bash
-curl -X PUT http://localhost:8080/api/users/1 \
-  -H "Content-Type: application/json" \
-  -d '{"username":"updateduser","email":"updated@example.com","age":26}'
-```
-
-成功响应：
-```json
-{
-  "id": 1,
-  "username": "updateduser",
-  "email": "updated@example.com",
-  "age": 26
-}
-```
-
-### 5. 删除用户
-
-```
-DELETE /api/users/{id}
-```
-
-示例请求：
-```bash
-curl -X DELETE http://localhost:8080/api/users/1
-```
-
-成功响应：
-- 状态码：204 No Content
-- 无响应体
+3. **运行时优化**
+- 连接池管理
+- 异步处理
+- 分页查询
 
 ## 错误处理
 
-API 使用统一的错误响应格式：
+系统实现了完整的错误处理机制：
 
-```json
-{
-  "error": "错误信息描述"
-}
-```
+- 输入验证
+- 数据库错误处理
+- HTTP 错误响应
+- 自定义错误类型
 
-常见错误情况：
+## 测试
 
-1. 分页参数无效：
+运行测试:
 ```bash
-# 无效的页码
-curl http://localhost:8080/api/users?page=0
-响应：{"error": "页码必须大于0"}
-
-# 过大的每页数量会自动调整为最大允许值(100)
-curl http://localhost:8080/api/users?limit=200
+cargo test
 ```
 
-2. 用户名已存在：
-```bash
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"username":"existing_user","email":"test@example.com","age":25}'
-响应：{"error": "用户名 'existing_user' 已存在"}
-```
+## 部署建议
 
-3. 用户不存在：
-```bash
-curl http://localhost:8080/api/users/999
-响应：{"error": "ID为999的用户不存在"}
-```
+1. **环境配置**
+   - 使用环境变量进行配置
+   - 根据环境调整日志级别
+   - 配置适当的数据库连接池大小
 
-4. 无效的输入数据：
-```bash
-# 空用户名
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"username":"","email":"test@example.com","age":25}'
-响应：{"error": "用户名不能为空"}
+2. **监控**
+   - 实现健康检查端点
+   - 监控数据库连接状态
+   - 跟踪请求响应时间
 
-# 空邮箱
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"username":"newuser","email":"","age":25}'
-响应：{"error": "邮箱不能为空"}
-```
+3. **安全性**
+   - 启用 HTTPS
+   - 实现速率限制
+   - 添加请求验证
 
-## 注意事项
+## 贡献指南
 
-1. 分页参数限制：
-   - 页码(page)必须大于0
-   - 每页数量(limit)范围：1-100
-   - 超出范围的limit会自动调整到最近的有效值
+1. Fork 项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
 
-2. 用户名唯一性：
-   - 系统不允许重复的用户名
-   - 创建和更新用户时都会检查用户名唯一性
+## 许可证
 
-3. 数据验证：
-   - 用户名和邮箱不能为空
-   - ID必须为正整数
-   - 年龄字段可选
+[MIT License](LICENSE)
 
-4. 错误处理：
-   - 所有错误响应都包含详细的错误信息
-   - 使用适当的HTTP状态码表示不同类型的错误
+## 维护者
+
+[sunrise](3266420686@qq.com)
