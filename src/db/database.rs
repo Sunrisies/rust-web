@@ -26,13 +26,26 @@ impl Database {
         conn.exec_drop(
             r"CREATE TABLE IF NOT EXISTS users (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                username VARCHAR(255) NOT NULL,
+                username VARCHAR(255) NOT NULL UNIQUE,
                 email VARCHAR(255) NOT NULL,
                 age INT
             )",
             (),
         )?;
         Ok(())
+    }
+
+    // 检查用户名是否存在
+    pub fn username_exists(&self, username: &str) -> Result<bool> {
+        let mut conn = self.pool.get_conn()?;
+        let count: Option<i32> = conn.exec_first(
+            "SELECT COUNT(*) FROM users WHERE username = :username",
+            params! {
+                "username" => username,
+            },
+        )?;
+        
+        Ok(count.unwrap_or(0) > 0)
     }
 
     // 创建新用户
