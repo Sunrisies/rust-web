@@ -1,25 +1,31 @@
+use crate::models::user::{self, Entity as UserEntity};
+use actix_web::error::ErrorInternalServerError;
+use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, Result};
+use chrono::Utc;
+use sea_orm::ActiveValue::Set;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DeleteResult, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect,
+};
 use serde::{Deserialize, Serialize};
-
-use crate::db::Database;
-use crate::models::User;
-
-const DEFAULT_PAGE_SIZE: i64 = 10;
-const MAX_PAGE_SIZE: i64 = 100;
+use serde_json::json;
+const DEFAULT_PAGE_SIZE: u64 = 10;
+const MAX_PAGE_SIZE: u64 = 100;
 
 #[derive(Deserialize)]
 pub struct PaginationQuery {
     #[serde(default = "default_page")]
-    page: i64,
+    page: u64,
     #[serde(default = "default_limit")]
-    limit: i64,
+    limit: u64,
 }
 
-fn default_page() -> i64 {
+fn default_page() -> u64 {
     1
 }
 
-fn default_limit() -> i64 {
+fn default_limit() -> u64 {
     DEFAULT_PAGE_SIZE
 }
 
@@ -31,10 +37,10 @@ pub struct PaginatedResponse<T> {
 
 #[derive(Serialize)]
 pub struct PaginationInfo {
-    total: i64,
-    total_pages: i64,
-    current_page: i64,
-    limit: i64,
+    total: u64,
+    total_pages: u64,
+    current_page: u64,
+    limit: u64,
     has_next: bool,
     has_previous: bool,
 }
@@ -60,11 +66,11 @@ struct ErrorResponse {
 
 // 获取用户列表（带分页）
 pub async fn get_all_users(
-    db: web::Data<Database>,
+    db: web::Data<DatabaseConnection>,
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse> {
     // 验证分页参数
-    if query.page <= 0 {
+    if query.page == 0 {
         let error_response = ErrorResponse {
             error: "页码必须大于0".to_string(),
         };
@@ -72,7 +78,7 @@ pub async fn get_all_users(
     }
 
     // 限制每页数量的范围
-    let limit = if query.limit <= 0 {
+    let limit = if query.limit == 0 {
         DEFAULT_PAGE_SIZE
     } else if query.limit > MAX_PAGE_SIZE {
         MAX_PAGE_SIZE
@@ -80,33 +86,44 @@ pub async fn get_all_users(
         query.limit
     };
 
-    match db.get_users_paginated(query.page, limit) {
-        Ok(paginated) => {
-            let response = PaginatedResponse {
-                data: paginated.users,
-                pagination: PaginationInfo {
-                    total: paginated.total,
-                    total_pages: paginated.total_pages,
-                    current_page: paginated.current_page,
-                    limit: paginated.limit,
-                    has_next: paginated.current_page < paginated.total_pages,
-                    has_previous: paginated.current_page > 1,
-                },
-            };
-            Ok(HttpResponse::Ok().json(response))
-        }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("获取用户列表失败: {}", e),
-            };
-            Ok(HttpResponse::InternalServerError().json(error_response))
-        }
-    }
-}
+    // 计算偏移量
+    let offset = (query.page - 1) * limit;
 
+    // 获取用户总数
+    let total = UserEntity::find()
+        .count(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("获取用户总数失败: {}", e)))?;
+
+    // 计算总页数
+    let total_pages = (total as f64 / limit as f64).ceil() as u64;
+
+    // 获取分页用户数据
+    let users = UserEntity::find()
+        .order_by_asc(user::Column::Id)
+        .offset(Some(offset))
+        .limit(Some(limit))
+        .all(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("获取用户列表失败: {}", e)))?;
+
+    let response = PaginatedResponse {
+        data: users,
+        pagination: PaginationInfo {
+            total,
+            total_pages,
+            current_page: query.page,
+            limit,
+            has_next: query.page < total_pages,
+            has_previous: query.page > 1,
+        },
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
 // 创建新用户
 pub async fn create_user(
-    db: web::Data<Database>,
+    db: web::Data<DatabaseConnection>,
     user_data: web::Json<CreateUserRequest>,
 ) -> Result<HttpResponse> {
     // 验证用户名不为空
@@ -126,49 +143,60 @@ pub async fn create_user(
     }
 
     // 检查用户名是否已存在
-    match db.username_exists(&user_data.username) {
-        Ok(exists) => {
-            if exists {
-                let error_response = ErrorResponse {
-                    error: format!("用户名 '{}' 已存在", user_data.username),
-                };
-                return Ok(HttpResponse::BadRequest().json(error_response));
-            }
-        }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("检查用户名时发生错误: {}", e),
-            };
-            return Ok(HttpResponse::InternalServerError().json(error_response));
-        }
+    let exists = UserEntity::find()
+        .filter(user::Column::Username.eq(&user_data.username))
+        .count(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("检查用户名时发生错误: {}", e)))?
+        > 0;
+
+    if exists {
+        let error_response = ErrorResponse {
+            error: format!("用户名 '{}' 已存在", user_data.username),
+        };
+        return Ok(HttpResponse::Conflict().json(error_response)); // 使用 409 Conflict 状态码
     }
 
-    let user = User::new(
-        user_data.username.clone(),
-        user_data.email.clone(),
-        user_data.age,
-    );
+    // 检查邮箱是否已存在
+    let email_exists = UserEntity::find()
+        .filter(user::Column::Email.eq(&user_data.email))
+        .count(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("检查邮箱时发生错误: {}", e)))?
+        > 0;
 
-    match db.create_user(&user) {
-        Ok(id) => {
-            let mut created_user = user;
-            created_user.id = Some(id as i32);
-            Ok(HttpResponse::Created().json(created_user))
-        }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("创建用户失败: {}", e),
-            };
-            Ok(HttpResponse::InternalServerError().json(error_response))
-        }
+    if email_exists {
+        let error_response = ErrorResponse {
+            error: format!("邮箱 '{}' 已被注册", user_data.email),
+        };
+        return Ok(HttpResponse::Conflict().json(error_response));
     }
+
+    // 创建新用户
+    let new_user = user::ActiveModel {
+        username: Set(user_data.username.clone()),
+        email: Set(user_data.email.clone()),
+        age: Set(user_data.age),
+        // 如果数据库中有这些字段，保留它们
+        // created_at: Set(Utc::now().naive_utc()),
+        // updated_at: Set(Utc::now().naive_utc()),
+        ..Default::default()
+    };
+
+    let created_user = new_user
+        .insert(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("创建用户失败: {}", e)))?;
+
+    // 直接使用插入返回的模型，无需转换
+    Ok(HttpResponse::Created().json(created_user))
 }
-
 // 通过ID获取用户
 pub async fn get_user_by_id(
-    db: web::Data<Database>,
+    db: web::Data<DatabaseConnection>,
     id: web::Path<i32>,
 ) -> Result<HttpResponse> {
+    // 验证用户ID
     if *id <= 0 {
         let error_response = ErrorResponse {
             error: "用户ID必须大于0".to_string(),
@@ -176,26 +204,25 @@ pub async fn get_user_by_id(
         return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
-    match db.get_user_by_id(*id) {
-        Ok(Some(user)) => Ok(HttpResponse::Ok().json(user)),
-        Ok(None) => {
+    // 查询用户
+    let user = UserEntity::find_by_id(*id)
+        .one(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("获取用户信息失败: {}", e)))?;
+
+    match user {
+        Some(user) => Ok(HttpResponse::Ok().json(user)),
+        None => {
             let error_response = ErrorResponse {
                 error: format!("ID为{}的用户不存在", id),
             };
             Ok(HttpResponse::NotFound().json(error_response))
         }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("获取用户信息失败: {}", e),
-            };
-            Ok(HttpResponse::InternalServerError().json(error_response))
-        }
     }
 }
-
 // 更新用户
 pub async fn update_user(
-    db: web::Data<Database>,
+    db: web::Data<DatabaseConnection>,
     id: web::Path<i32>,
     user_data: web::Json<UpdateUserRequest>,
 ) -> Result<HttpResponse> {
@@ -223,56 +250,80 @@ pub async fn update_user(
         return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
-    // 检查用户是否存在并验证用户名
-    match db.get_user_by_id(*id) {
-        Ok(Some(existing_user)) => {
-            if existing_user.username != user_data.username {
-                // 只有当用户名发生变化时才检查
-                if let Ok(exists) = db.username_exists(&user_data.username) {
-                    if exists {
-                        let error_response = ErrorResponse {
-                            error: format!("用户名 '{}' 已存在", user_data.username),
-                        };
-                        return Ok(HttpResponse::BadRequest().json(error_response));
-                    }
-                }
-            }
-        }
-        Ok(None) => {
+    // 获取现有用户
+    let existing_user = UserEntity::find_by_id(*id)
+        .one(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("检查用户信息失败: {}", e)))?;
+
+    let existing_user = match existing_user {
+        Some(user) => user,
+        None => {
             let error_response = ErrorResponse {
                 error: format!("ID为{}的用户不存在", id),
             };
             return Ok(HttpResponse::NotFound().json(error_response));
         }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("检查用户信息失败: {}", e),
-            };
-            return Ok(HttpResponse::InternalServerError().json(error_response));
-        }
-    }
-
-    let user = User {
-        id: Some(*id),
-        username: user_data.username.clone(),
-        email: user_data.email.clone(),
-        age: user_data.age,
     };
 
-    match db.update_user(&user) {
-        Ok(_) => Ok(HttpResponse::Ok().json(user)),
-        Err(e) => {
+    // 检查用户名是否被其他用户占用
+    if existing_user.username != user_data.username {
+        let username_exists = UserEntity::find()
+            .filter(user::Column::Username.eq(&user_data.username))
+            .filter(user::Column::Id.ne(*id)) // 排除当前用户
+            .count(db.as_ref())
+            .await
+            .map_err(|e| ErrorInternalServerError(format!("检查用户名时发生错误: {}", e)))?
+            > 0;
+
+        if username_exists {
             let error_response = ErrorResponse {
-                error: format!("更新用户信息失败: {}", e),
+                error: format!("用户名 '{}' 已存在", user_data.username),
             };
-            Ok(HttpResponse::InternalServerError().json(error_response))
+            return Ok(HttpResponse::Conflict().json(error_response));
         }
     }
-}
 
+    // 检查邮箱是否被其他用户占用
+    if existing_user.email != user_data.email {
+        let email_exists = UserEntity::find()
+            .filter(user::Column::Email.eq(&user_data.email))
+            .filter(user::Column::Id.ne(*id)) // 排除当前用户
+            .count(db.as_ref())
+            .await
+            .map_err(|e| ErrorInternalServerError(format!("检查邮箱时发生错误: {}", e)))?
+            > 0;
+
+        if email_exists {
+            let error_response = ErrorResponse {
+                error: format!("邮箱 '{}' 已被注册", user_data.email),
+            };
+            return Ok(HttpResponse::Conflict().json(error_response));
+        }
+    }
+
+    // 创建更新模型
+    let mut user_active: user::ActiveModel = existing_user.into();
+
+    // 更新字段
+    user_active.username = Set(user_data.username.clone());
+    user_active.email = Set(user_data.email.clone());
+    user_active.age = Set(user_data.age);
+
+    // 如果需要更新时间戳
+    // user_active.updated_at = Set(Utc::now().naive_utc());
+
+    // 执行更新
+    let updated_user = user_active
+        .update(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("更新用户信息失败: {}", e)))?;
+
+    Ok(HttpResponse::Ok().json(updated_user))
+}
 // 删除用户
 pub async fn delete_user(
-    db: web::Data<Database>,
+    db: web::Data<DatabaseConnection>,
     id: web::Path<i32>,
 ) -> Result<HttpResponse> {
     // 验证ID
@@ -283,30 +334,22 @@ pub async fn delete_user(
         return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
-    // 检查用户是否存在
-    match db.get_user_by_id(*id) {
-        Ok(Some(_)) => {
-            match db.delete_user(*id) {
-                Ok(_) => Ok(HttpResponse::NoContent().finish()),
-                Err(e) => {
-                    let error_response = ErrorResponse {
-                        error: format!("删除用户失败: {}", e),
-                    };
-                    Ok(HttpResponse::InternalServerError().json(error_response))
-                }
-            }
-        }
-        Ok(None) => {
-            let error_response = ErrorResponse {
-                error: format!("ID为{}的用户不存在", id),
-            };
-            Ok(HttpResponse::NotFound().json(error_response))
-        }
-        Err(e) => {
-            let error_response = ErrorResponse {
-                error: format!("检查用户信息失败: {}", e),
-            };
-            Ok(HttpResponse::InternalServerError().json(error_response))
-        }
+    // 执行删除并检查结果
+    let delete_result = UserEntity::delete_by_id(*id)
+        .exec(db.as_ref())
+        .await
+        .map_err(|e| ErrorInternalServerError(format!("删除用户失败: {}", e)))?;
+
+    // 检查是否成功删除
+    if delete_result.rows_affected == 0 {
+        let error_response = ErrorResponse {
+            error: format!("ID为{}的用户不存在", id),
+        };
+        return Ok(HttpResponse::NotFound().json(error_response));
     }
+
+    // 成功删除，返回200 OK并附带成功消息
+    Ok(HttpResponse::Ok().json(json!({
+        "message": format!("用户ID {} 已成功删除", *id)
+    })))
 }

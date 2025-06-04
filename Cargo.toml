@@ -6,6 +6,7 @@ authors = ["Your Name <your.email@example.com>"]
 description = "A RESTful CRUD API for user management with MySQL"
 
 [dependencies]
+sea-orm = { version = "1.1.12", features = ["sqlx-mysql","runtime-tokio-rustls","macros" ] }
 actix-web = "4.4.0"
 mysql = "24.0.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -20,6 +21,7 @@ futures = "0.3"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 config = "0.13"
+
 
 [profile.dev]
 opt-level = 0
