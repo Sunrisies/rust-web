@@ -2,6 +2,7 @@ use actix_web::{web, App, HttpServer};
 use log::info;
 use mysql_user_crud::config_routes;
 use mysql_user_crud::create_db_pool;
+use mysql_user_crud::AppError;
 use mysql_user_crud::Logger;
 use std::env;
 
@@ -26,6 +27,14 @@ async fn main() -> std::io::Result<()> {
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()
+            .app_data(
+                web::JsonConfig::default()
+                    .limit(4096) // 限制请求体大小
+                    .error_handler(|err, _req| {
+                        println!("打印数据1111{:?}", err);
+                        AppError::from(err).into()
+                    }),
+            )
             .app_data(app_data.clone())
             .wrap(Logger)
             .wrap(actix_web::middleware::Logger::default())

@@ -2344,6 +2344,7 @@ dependencies = [
  "futures-util",
  "log",
  "mysql",
+ "regex",
  "sea-orm",
  "sea-orm-cli",
  "serde",

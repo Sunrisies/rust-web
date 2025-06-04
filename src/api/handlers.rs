@@ -1,5 +1,5 @@
 use crate::dto::user::CreateUserRequest;
-use crate::error::AppError;
+use crate::error::error::AppError;
 use crate::models::user::{self, Entity as UserEntity};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::error::JsonPayloadError;

@@ -6,5 +6,6 @@ pub mod middleware;
 pub mod models;
 pub use api::config_routes;
 pub use db::database::create_db_pool;
+pub use error::error::AppError;
 pub use middleware::logger::Logger;
 pub use models::user;
