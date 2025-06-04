@@ -3,6 +3,7 @@ use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
+use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DeleteResult, EntityTrait, PaginatorTrait,
@@ -50,6 +51,7 @@ pub struct CreateUserRequest {
     username: String,
     email: String,
     age: Option<i32>,
+    password: String,
 }
 
 #[derive(Deserialize)]
@@ -174,12 +176,14 @@ pub async fn create_user(
 
     // 创建新用户
     let new_user = user::ActiveModel {
+        uuid: Set(Uuid::new_v4()),
         username: Set(user_data.username.clone()),
         email: Set(user_data.email.clone()),
         age: Set(user_data.age),
         // 如果数据库中有这些字段，保留它们
-        // created_at: Set(Utc::now().naive_utc()),
-        // updated_at: Set(Utc::now().naive_utc()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        password: Set(user_data.password.clone()),
         ..Default::default()
     };
 
@@ -311,7 +315,7 @@ pub async fn update_user(
     user_active.age = Set(user_data.age);
 
     // 如果需要更新时间戳
-    // user_active.updated_at = Set(Utc::now().naive_utc());
+    user_active.updated_at = Set(Utc::now());
 
     // 执行更新
     let updated_user = user_active
