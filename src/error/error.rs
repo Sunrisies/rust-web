@@ -1,8 +1,5 @@
-use actix_web::error::JsonPayloadError;
+use crate::json_error::parse_json_error;
 use actix_web::{error::ResponseError, HttpResponse};
-use anyhow::Ok;
-// pub use json_error::parse_json_error;
-use regex::Regex;
 use serde::Serialize;
 use thiserror::Error;
 #[derive(Error, Debug)]
@@ -36,30 +33,30 @@ struct ErrorResponse {
     error: String,
     message: String,
 }
-/// 从 JSON 反序列化错误中提取友好信息
-pub fn parse_json_error(err: &JsonPayloadError) -> String {
-    let error_str = err.to_string();
+// /// 从 JSON 反序列化错误中提取友好信息
+// pub fn parse_json_error(err: &JsonPayloadError) -> String {
+//     let error_str = err.to_string();
 
-    // 使用正则表达式提取关键信息
-    let re = Regex::new(r"missing field `([^`]+)`").unwrap();
-    if let Some(caps) = re.captures(&error_str) {
-        if let Some(field) = caps.get(1) {
-            return format!("缺少必填字段: {}", field.as_str());
-        }
-    }
+//     // 使用正则表达式提取关键信息
+//     let re = Regex::new(r"missing field `([^`]+)`").unwrap();
+//     if let Some(caps) = re.captures(&error_str) {
+//         if let Some(field) = caps.get(1) {
+//             return format!("缺少必填字段: {}", field.as_str());
+//         }
+//     }
 
-    // 处理其他常见错误类型
-    if error_str.contains("expected") && error_str.contains("found") {
-        return "字段类型不匹配".to_string();
-    }
+//     // 处理其他常见错误类型
+//     if error_str.contains("expected") && error_str.contains("found") {
+//         return "字段类型不匹配".to_string();
+//     }
 
-    if error_str.contains("unexpected end of input") {
-        return "请求体不完整".to_string();
-    }
+//     if error_str.contains("unexpected end of input") {
+//         return "请求体不完整".to_string();
+//     }
 
-    // 默认错误信息
-    "请求数据格式错误".to_string()
-}
+//     // 默认错误信息
+//     "请求数据格式错误".to_string()
+// }
 
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
@@ -71,7 +68,7 @@ impl ResponseError for AppError {
             }),
             AppError::BadRequest(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
-                error: "Bad Request".to_string(),
+                error: "缺少参数".to_string(),
                 message: msg.to_string(),
             }),
             AppError::NotFound(msg) => HttpResponse::NotFound().json(ErrorResponse {
@@ -86,7 +83,7 @@ impl ResponseError for AppError {
             }),
             AppError::DeserializeError(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
-                error: "Bad Request".to_string(),
+                error: "参数类型错误".to_string(),
                 message: msg.to_string(),
             }),
             AppError::Conflict(msg) => {
