@@ -20,7 +20,7 @@ pub enum AppError {
     DeserializeError(String),
 
     #[error("Conflict occurred: {0}")]
-    Conflict(String), // 添加 Conflict 变体
+    Conflict(String),
 
     // 缺少参数
     #[error("缺少参数: {0}")]
@@ -33,31 +33,7 @@ struct ErrorResponse {
     error: String,
     message: String,
 }
-// /// 从 JSON 反序列化错误中提取友好信息
-// pub fn parse_json_error(err: &JsonPayloadError) -> String {
-//     let error_str = err.to_string();
-
-//     // 使用正则表达式提取关键信息
-//     let re = Regex::new(r"missing field `([^`]+)`").unwrap();
-//     if let Some(caps) = re.captures(&error_str) {
-//         if let Some(field) = caps.get(1) {
-//             return format!("缺少必填字段: {}", field.as_str());
-//         }
-//     }
-
-//     // 处理其他常见错误类型
-//     if error_str.contains("expected") && error_str.contains("found") {
-//         return "字段类型不匹配".to_string();
-//     }
-
-//     if error_str.contains("unexpected end of input") {
-//         return "请求体不完整".to_string();
-//     }
-
-//     // 默认错误信息
-//     "请求数据格式错误".to_string()
-// }
-
+// 错误处理
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         match self {

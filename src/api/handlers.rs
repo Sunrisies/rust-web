@@ -2,14 +2,13 @@ use crate::dto::user::CreateUserRequest;
 use crate::error::error::AppError;
 use crate::models::user::{self, Entity as UserEntity};
 use actix_web::error::ErrorInternalServerError;
-use actix_web::error::JsonPayloadError;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
 use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DeleteResult, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
