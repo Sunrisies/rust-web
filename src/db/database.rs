@@ -16,8 +16,7 @@ pub async fn create_db_pool() -> Result<DatabaseConnection, DbErr> {
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
         .sqlx_logging(true)
-        .sqlx_logging_level(log::LevelFilter::Info)
-        .set_schema_search_path("my_schema"); // 设置默认的PostgreSQL schema
+        .sqlx_logging_level(log::LevelFilter::Info);
 
     Database::connect(opt).await
 }

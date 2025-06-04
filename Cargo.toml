@@ -23,6 +23,8 @@ chrono = { version = "0.4", features = ["serde"] }
 config = "0.13"
 sea-orm-cli = "1.1.12"
 uuid = { version = "1.17.0", features = ["v4"] }
+validator = { version = "0.20.0", features = ["derive"] }
+futures-util = "0.3.31"
 
 
 [profile.dev]

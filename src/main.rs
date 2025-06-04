@@ -1,6 +1,8 @@
 use actix_web::{web, App, HttpServer};
+use log::info;
 use mysql_user_crud::config_routes;
 use mysql_user_crud::create_db_pool;
+use mysql_user_crud::Logger;
 use std::env;
 
 #[actix_web::main]
@@ -18,13 +20,14 @@ async fn main() -> std::io::Result<()> {
     let host = env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
     let server_addr = format!("{}:{}", host, port);
-
+    info!("11Starting server at http://{}", server_addr);
     println!("Starting server at http://{}", server_addr);
 
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()
             .app_data(app_data.clone())
+            .wrap(Logger)
             .wrap(actix_web::middleware::Logger::default())
             .configure(config_routes)
     })
