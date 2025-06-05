@@ -1,5 +1,7 @@
 use actix_web::{web, App, HttpServer};
+use log::error;
 use log::info;
+use log4rs::init_file;
 use mysql_user_crud::config_routes;
 use mysql_user_crud::create_db_pool;
 use mysql_user_crud::AppError;
@@ -9,7 +11,17 @@ use std::env;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 初始化日志
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // 初始化日志系统
+    init_file("log4rs.yaml", Default::default()).unwrap();
+
+    // 记录日志信息
+    for i in 0..10000 {
+        info!("This is an info message {}", i);
+        if i % 100 == 0 {
+            error!("This is an error message {}", i);
+        }
+    }
+    // env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let db_pool = create_db_pool()
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;

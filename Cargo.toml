@@ -26,7 +26,7 @@ uuid = { version = "1.17.0", features = ["v4"] }
 validator = { version = "0.20.0", features = ["derive"] }
 futures-util = "0.3.31"
 regex = "1.11.1"
-openssl = { version = "0.10", features = ["vendored"] }
+log4rs = "1.3.0"
 
 
 [profile.dev]
