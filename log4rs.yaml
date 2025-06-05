@@ -2,7 +2,7 @@ appenders:
   stdout:
     kind: console
     encoder:
-      pattern: "{d(%Y-%m-%d %H:%M:%S)} - {m}{n}"
+      pattern: "{l} - {d(%Y-%m-%d %H:%M:%S)} - {m}{n}"
   file:
     kind: rolling_file
     path: "logs/log.log"
@@ -17,7 +17,7 @@ appenders:
         count: 30
         pattern: "logs/test.{}.log"
     encoder:
-     pattern: "{d(%Y-%m-%d %H:%M:%S)} - {m}{n}"
+      pattern: "{l} - {d(%Y-%m-%d %H:%M:%S)} - {m}{n}"
 root:
   level: info
   appenders:
