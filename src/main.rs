@@ -18,7 +18,7 @@ async fn main() -> std::io::Result<()> {
     let app_data = web::Data::new(db_pool);
 
     // 获取服务器地址和端口
-    let host = env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
     let server_addr = format!("{}:{}", host, port);
     info!("11Starting server at http://{}", server_addr);
