@@ -50,7 +50,7 @@ pub struct PaginationInfo {
 
 #[derive(Deserialize)]
 pub struct UpdateUserRequest {
-    username: String,
+    user_name: String,
     email: String,
     age: Option<i32>,
 }
@@ -118,76 +118,76 @@ pub async fn get_all_users(
     Ok(HttpResponse::Ok().json(response))
 }
 // 创建新用户
-pub async fn create_user(
-    db: web::Data<DatabaseConnection>,
-    user_data: web::Json<CreateUserRequest>, // 直接使用 web::Json 而不是 Result
-) -> Result<HttpResponse, AppError> {
-    info!("{:?}", user_data); // 打印接收到的JSON数据
-    user_data.validate().map_err(|e| {
-        info!("{:?}", e); // 打印验证错误
-        AppError::DeserializeError(e.to_string())
-    })?;
-    let user_data = user_data.into_inner(); // 提取内部数据
+// pub async fn create_user(
+//     db: web::Data<DatabaseConnection>,
+//     user_data: web::Json<CreateUserRequest>, // 直接使用 web::Json 而不是 Result
+// ) -> Result<HttpResponse, AppError> {
+//     info!("{:?}", user_data); // 打印接收到的JSON数据
+//     user_data.validate().map_err(|e| {
+//         info!("{:?}", e); // 打印验证错误
+//         AppError::DeserializeError(e.to_string())
+//     })?;
+//     let user_data = user_data.into_inner(); // 提取内部数据
 
-    // 验证用户名不为空
-    if user_data.username.trim().is_empty() {
-        return Err(AppError::BadRequest("用户名不能为空".into()));
-    }
+//     // 验证用户名不为空
+//     if user_data.username.trim().is_empty() {
+//         return Err(AppError::BadRequest("用户名不能为空".into()));
+//     }
 
-    // 验证邮箱不为空
-    if user_data.email.trim().is_empty() {
-        return Err(AppError::BadRequest("邮箱不能为空".into()));
-    }
+//     // 验证邮箱不为空
+//     if user_data.email.trim().is_empty() {
+//         return Err(AppError::BadRequest("邮箱不能为空".into()));
+//     }
 
-    // 检查用户名是否已存在
-    let exists = UserEntity::find()
-        .filter(user::Column::Username.eq(&user_data.username))
-        .count(db.as_ref())
-        .await
-        .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
-        > 0;
+//     // 检查用户名是否已存在
+//     let exists = UserEntity::find()
+//         .filter(user::Column::Username.eq(&user_data.username))
+//         .count(db.as_ref())
+//         .await
+//         .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
+//         > 0;
 
-    if exists {
-        return Err(AppError::Conflict(format!(
-            "用户名 '{}' 已存在",
-            user_data.username
-        )));
-    }
+//     if exists {
+//         return Err(AppError::Conflict(format!(
+//             "用户名 '{}' 已存在",
+//             user_data.username
+//         )));
+//     }
 
-    // 检查邮箱是否已存在
-    let email_exists = UserEntity::find()
-        .filter(user::Column::Email.eq(&user_data.email))
-        .count(db.as_ref())
-        .await
-        .map_err(|e| AppError::Internal(format!("检查邮箱时发生错误: {}", e)))?
-        > 0;
+//     // 检查邮箱是否已存在
+//     let email_exists = UserEntity::find()
+//         .filter(user::Column::Email.eq(&user_data.email))
+//         .count(db.as_ref())
+//         .await
+//         .map_err(|e| AppError::Internal(format!("检查邮箱时发生错误: {}", e)))?
+//         > 0;
 
-    if email_exists {
-        return Err(AppError::Conflict(format!(
-            "邮箱 '{}' 已被注册",
-            user_data.email
-        )));
-    }
+//     if email_exists {
+//         return Err(AppError::Conflict(format!(
+//             "邮箱 '{}' 已被注册",
+//             user_data.email
+//         )));
+//     }
 
-    // 创建新用户
-    let new_user = user::ActiveModel {
-        uuid: Set(Uuid::new_v4()),
-        username: Set(user_data.username.clone()),
-        email: Set(user_data.email.clone()),
-        age: Set(user_data.age),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
-        password: Set(user_data.password.clone()), // 注意：这里应该存储哈希后的密码
-        ..Default::default()
-    };
+//     // 创建新用户
+//     let new_user = user::ActiveModel {
+//         uuid: Set(Uuid::new_v4()),
+//         username: Set(user_data.username.clone()),
+//         email: Set(user_data.email.clone()),
+//         age: Set(user_data.age),
+//         created_at: Set(Utc::now()),
+//         updated_at: Set(Utc::now()),
+//         password: Set(user_data.password.clone()), // 注意：这里应该存储哈希后的密码
+//         ..Default::default()
+//     };
 
-    let created_user = new_user
-        .insert(db.as_ref())
-        .await
-        .map_err(|e| AppError::Internal(format!("创建用户失败: {}", e)))?;
+//     let created_user = new_user
+//         .insert(db.as_ref())
+//         .await
+//         .map_err(|e| AppError::Internal(format!("创建用户失败: {}", e)))?;
 
-    Ok(HttpResponse::Created().json(created_user))
-}
+//     Ok(HttpResponse::Created().json(created_user))
+// }
 
 // 通过ID获取用户
 pub async fn get_user_by_id(
@@ -234,7 +234,7 @@ pub async fn update_user(
     }
 
     // 验证用户名不为空
-    if user_data.username.trim().is_empty() {
+    if user_data.user_name.trim().is_empty() {
         let error_response = ErrorResponse {
             error: "用户名不能为空".to_string(),
         };
@@ -266,9 +266,9 @@ pub async fn update_user(
     };
 
     // 检查用户名是否被其他用户占用
-    if existing_user.username != user_data.username {
+    if existing_user.user_name != user_data.user_name {
         let username_exists = UserEntity::find()
-            .filter(user::Column::Username.eq(&user_data.username))
+            .filter(user::Column::UserName.eq(&user_data.user_name))
             .filter(user::Column::Id.ne(*id)) // 排除当前用户
             .count(db.as_ref())
             .await
@@ -277,25 +277,7 @@ pub async fn update_user(
 
         if username_exists {
             let error_response = ErrorResponse {
-                error: format!("用户名 '{}' 已存在", user_data.username),
-            };
-            return Ok(HttpResponse::Conflict().json(error_response));
-        }
-    }
-
-    // 检查邮箱是否被其他用户占用
-    if existing_user.email != user_data.email {
-        let email_exists = UserEntity::find()
-            .filter(user::Column::Email.eq(&user_data.email))
-            .filter(user::Column::Id.ne(*id)) // 排除当前用户
-            .count(db.as_ref())
-            .await
-            .map_err(|e| AppError::Internal(format!("检查邮箱时发生错误: {}", e)))?
-            > 0;
-
-        if email_exists {
-            let error_response = ErrorResponse {
-                error: format!("邮箱 '{}' 已被注册", user_data.email),
+                error: format!("用户名 '{}' 已存在", user_data.user_name),
             };
             return Ok(HttpResponse::Conflict().json(error_response));
         }
@@ -305,8 +287,8 @@ pub async fn update_user(
     let mut user_active: user::ActiveModel = existing_user.into();
 
     // 更新字段
-    user_active.username = Set(user_data.username.clone());
-    user_active.email = Set(user_data.email.clone());
+    user_active.user_name = Set(user_data.user_name.clone());
+    // user_active.email = Set(user_data.email.clone());
     user_active.age = Set(user_data.age);
 
     // 如果需要更新时间戳

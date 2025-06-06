@@ -5,23 +5,22 @@ use uuid::Uuid;
 #[sea_orm(table_name = "users")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
-    // 主键
     pub id: i32,
-    // 全局唯一标识符
     #[sea_orm(unique)]
     pub uuid: Uuid,
-    // 用户名
-    pub username: String,
-    // 电子邮箱
     #[sea_orm(unique)]
-    pub email: String,
-    // 密码
-    pub password: String,
-    // 年龄
+    pub user_name: String,
+    pub pass_word: String,
+    pub email: Option<String>,
     pub age: Option<i32>,
-    // 创建时间
+    pub image: Option<String>,
+    pub phone: Option<String>,
+    pub role: Option<String>,
+    pub permissions: Option<String>,
+    pub binding: Option<String>,
+    #[sea_orm(default_value_t = DateTimeUtc::default())]
     pub created_at: DateTimeUtc,
-    // 更新时间
+    #[sea_orm(default_value_t = DateTimeUtc::default())]
     pub updated_at: DateTimeUtc,
 }
 
