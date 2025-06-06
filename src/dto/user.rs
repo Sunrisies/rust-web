@@ -35,3 +35,11 @@ pub struct RegisterResponse {
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     pub pass_word: String,
 }
+
+#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
+pub struct LoginRequest {
+    #[validate(length(min = 10, max = 100, message = "用户名长度必须在10到100之间"))]
+    pub user_name: String,
+    #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
+    pub pass_word: String,
+}

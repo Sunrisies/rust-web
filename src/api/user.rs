@@ -1,10 +1,7 @@
-use crate::dto::user::CreateUserRequest;
 use crate::error::error::AppError;
 use crate::models::user::{self, Entity as UserEntity};
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
-use log::info;
-use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -12,7 +9,6 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
 
