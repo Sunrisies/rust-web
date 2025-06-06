@@ -4,7 +4,7 @@ use serde::Serialize;
 use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("Internal server error: {0}")]
+    #[error("服务器错误: {0}")]
     Internal(String),
 
     #[error("Bad request: {0}")]
@@ -39,7 +39,7 @@ impl ResponseError for AppError {
         match self {
             AppError::Internal(msg) => HttpResponse::InternalServerError().json(ErrorResponse {
                 code: 500,
-                error: "Internal Server Error".to_string(),
+                error: "服务器错误".to_string(),
                 message: msg.to_string(),
             }),
             AppError::BadRequest(msg) => HttpResponse::BadRequest().json(ErrorResponse {

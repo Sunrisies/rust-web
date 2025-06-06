@@ -1,9 +1,9 @@
 use crate::dto::user::CreateUserRequest;
 use crate::error::error::AppError;
 use crate::models::user::{self, Entity as UserEntity};
-use actix_web::error::ErrorInternalServerError;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
+use log::info;
 use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
@@ -89,7 +89,7 @@ pub async fn get_all_users(
     let total = UserEntity::find()
         .count(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("获取用户总数失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("获取用户总数失败: {}", e)))?;
 
     // 计算总页数
     let total_pages = (total as f64 / limit as f64).ceil() as u64;
@@ -101,7 +101,7 @@ pub async fn get_all_users(
         .limit(Some(limit))
         .all(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("获取用户列表失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("获取用户列表失败: {}", e)))?;
 
     let response = PaginatedResponse {
         data: users,
@@ -122,9 +122,9 @@ pub async fn create_user(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<CreateUserRequest>, // 直接使用 web::Json 而不是 Result
 ) -> Result<HttpResponse, AppError> {
-    println!("{:?}", user_data); // 打印接收到的JSON数据
+    info!("{:?}", user_data); // 打印接收到的JSON数据
     user_data.validate().map_err(|e| {
-        println!("{:?}", e); // 打印验证错误
+        info!("{:?}", e); // 打印验证错误
         AppError::DeserializeError(e.to_string())
     })?;
     let user_data = user_data.into_inner(); // 提取内部数据
@@ -206,7 +206,7 @@ pub async fn get_user_by_id(
     let user = UserEntity::find_by_id(*id)
         .one(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("获取用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("获取用户信息失败: {}", e)))?;
 
     match user {
         Some(user) => Ok(HttpResponse::Ok().json(user)),
@@ -218,6 +218,7 @@ pub async fn get_user_by_id(
         }
     }
 }
+
 // 更新用户
 pub async fn update_user(
     db: web::Data<DatabaseConnection>,
@@ -252,7 +253,7 @@ pub async fn update_user(
     let existing_user = UserEntity::find_by_id(*id)
         .one(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("检查用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("检查用户信息失败: {}", e)))?;
 
     let existing_user = match existing_user {
         Some(user) => user,
@@ -271,7 +272,7 @@ pub async fn update_user(
             .filter(user::Column::Id.ne(*id)) // 排除当前用户
             .count(db.as_ref())
             .await
-            .map_err(|e| ErrorInternalServerError(format!("检查用户名时发生错误: {}", e)))?
+            .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
             > 0;
 
         if username_exists {
@@ -289,7 +290,7 @@ pub async fn update_user(
             .filter(user::Column::Id.ne(*id)) // 排除当前用户
             .count(db.as_ref())
             .await
-            .map_err(|e| ErrorInternalServerError(format!("检查邮箱时发生错误: {}", e)))?
+            .map_err(|e| AppError::Internal(format!("检查邮箱时发生错误: {}", e)))?
             > 0;
 
         if email_exists {
@@ -315,7 +316,7 @@ pub async fn update_user(
     let updated_user = user_active
         .update(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("更新用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("更新用户信息失败: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(updated_user))
 }
@@ -336,7 +337,7 @@ pub async fn delete_user(
     let delete_result = UserEntity::delete_by_id(*id)
         .exec(db.as_ref())
         .await
-        .map_err(|e| ErrorInternalServerError(format!("删除用户失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("删除用户失败: {}", e)))?;
 
     // 检查是否成功删除
     if delete_result.rows_affected == 0 {
