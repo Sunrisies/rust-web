@@ -1,11 +1,6 @@
 use actix_web::{web, App, HttpServer};
-use log::error;
-use log::info;
-use mysql_user_crud::config_routes;
-use mysql_user_crud::create_db_pool;
-use mysql_user_crud::init_logger;
-use mysql_user_crud::AppError;
-use mysql_user_crud::Logger;
+use log::{error, info};
+use mysql_user_crud::{config_routes, create_db_pool, init_logger, AppError, Logger};
 use std::env;
 
 #[actix_web::main]

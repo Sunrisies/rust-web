@@ -1,4 +1,4 @@
 mod routes;
-mod handlers;
+mod user;
 
 pub use routes::config_routes;
