@@ -8,7 +8,7 @@ COPY . .
 
 # RUN apt-get update && apt-get install -y musl-tools && \
     # rustup target add x86_64-unknown-linux-musl && apt-get install libssl-dev -y &&  apt-get install pkg-config -y
-RUN cargo build --release
+RUN cargo build --release 
 
 # 运行阶段
 FROM alpine:latest
