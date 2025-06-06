@@ -1,6 +1,6 @@
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID，自增',
-    uuid BINARY(16) NOT NULL COMMENT '全局唯一标识符（二进制格式）',
+    uuid CHAR(36) NOT NULL COMMENT '全局唯一标识符（字符串格式）',
     user_name VARCHAR(255) NOT NULL COMMENT '用户名',
     pass_word VARCHAR(255) NOT NULL COMMENT '密码',
     email VARCHAR(255) COMMENT '电子邮箱',

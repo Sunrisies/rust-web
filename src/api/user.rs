@@ -117,93 +117,22 @@ pub async fn get_all_users(
 
     Ok(HttpResponse::Ok().json(response))
 }
-// 创建新用户
-// pub async fn create_user(
-//     db: web::Data<DatabaseConnection>,
-//     user_data: web::Json<CreateUserRequest>, // 直接使用 web::Json 而不是 Result
-// ) -> Result<HttpResponse, AppError> {
-//     info!("{:?}", user_data); // 打印接收到的JSON数据
-//     user_data.validate().map_err(|e| {
-//         info!("{:?}", e); // 打印验证错误
-//         AppError::DeserializeError(e.to_string())
-//     })?;
-//     let user_data = user_data.into_inner(); // 提取内部数据
-
-//     // 验证用户名不为空
-//     if user_data.username.trim().is_empty() {
-//         return Err(AppError::BadRequest("用户名不能为空".into()));
-//     }
-
-//     // 验证邮箱不为空
-//     if user_data.email.trim().is_empty() {
-//         return Err(AppError::BadRequest("邮箱不能为空".into()));
-//     }
-
-//     // 检查用户名是否已存在
-//     let exists = UserEntity::find()
-//         .filter(user::Column::Username.eq(&user_data.username))
-//         .count(db.as_ref())
-//         .await
-//         .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
-//         > 0;
-
-//     if exists {
-//         return Err(AppError::Conflict(format!(
-//             "用户名 '{}' 已存在",
-//             user_data.username
-//         )));
-//     }
-
-//     // 检查邮箱是否已存在
-//     let email_exists = UserEntity::find()
-//         .filter(user::Column::Email.eq(&user_data.email))
-//         .count(db.as_ref())
-//         .await
-//         .map_err(|e| AppError::Internal(format!("检查邮箱时发生错误: {}", e)))?
-//         > 0;
-
-//     if email_exists {
-//         return Err(AppError::Conflict(format!(
-//             "邮箱 '{}' 已被注册",
-//             user_data.email
-//         )));
-//     }
-
-//     // 创建新用户
-//     let new_user = user::ActiveModel {
-//         uuid: Set(Uuid::new_v4()),
-//         username: Set(user_data.username.clone()),
-//         email: Set(user_data.email.clone()),
-//         age: Set(user_data.age),
-//         created_at: Set(Utc::now()),
-//         updated_at: Set(Utc::now()),
-//         password: Set(user_data.password.clone()), // 注意：这里应该存储哈希后的密码
-//         ..Default::default()
-//     };
-
-//     let created_user = new_user
-//         .insert(db.as_ref())
-//         .await
-//         .map_err(|e| AppError::Internal(format!("创建用户失败: {}", e)))?;
-
-//     Ok(HttpResponse::Created().json(created_user))
-// }
 
 // 通过ID获取用户
-pub async fn get_user_by_id(
+pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
-    id: web::Path<i32>,
+    uuid: web::Path<String>,
 ) -> Result<HttpResponse> {
-    // 验证用户ID
-    if *id <= 0 {
+    // 验证UUID格式
+    if uuid.is_empty() || uuid.len() != 36 {
         let error_response = ErrorResponse {
-            error: "用户ID必须大于0".to_string(),
+            error: "无效的UUID格式".to_string(),
         };
         return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
     // 查询用户
-    let user = UserEntity::find_by_id(*id)
+    let user = UserEntity::find_by_uuid(&uuid)
         .one(db.as_ref())
         .await
         .map_err(|e| AppError::Internal(format!("获取用户信息失败: {}", e)))?;
@@ -212,7 +141,7 @@ pub async fn get_user_by_id(
         Some(user) => Ok(HttpResponse::Ok().json(user)),
         None => {
             let error_response = ErrorResponse {
-                error: format!("ID为{}的用户不存在", id),
+                error: format!("UUID为{}的用户不存在", uuid),
             };
             Ok(HttpResponse::NotFound().json(error_response))
         }

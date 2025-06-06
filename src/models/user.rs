@@ -7,7 +7,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
     pub id: i32,
     #[sea_orm(unique)]
-    pub uuid: Uuid,
+    pub uuid: String,
     #[sea_orm(unique)]
     pub user_name: String,
     pub pass_word: String,
@@ -26,5 +26,12 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
+
+impl Entity {
+    // 添加按UUID查询的方法
+    pub fn find_by_uuid(uuid: &str) -> Select<Entity> {
+        Self::find().filter(Column::Uuid.eq(uuid))
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

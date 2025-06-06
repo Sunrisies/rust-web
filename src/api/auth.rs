@@ -9,7 +9,6 @@ use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect,
 };
 use validator::Validate;
 pub async fn login(
@@ -24,8 +23,6 @@ pub async fn register(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<RegisterResponse>,
 ) -> Result<HttpResponse, AppError> {
-    info!("register user: {:?}", user_data);
-    info!("{:?}", user_data); // 打印接收到的JSON数据
     user_data.validate().map_err(|e| {
         info!("{:?}", e); // 打印验证错误
         AppError::DeserializeError(e.to_string())
@@ -60,7 +57,7 @@ pub async fn register(
 
     // 创建新用户
     let new_user = user::ActiveModel {
-        uuid: Set(Uuid::new_v4()),
+        uuid: Set(Uuid::new_v4().to_string()),
         user_name: Set(user_data.user_name.clone()),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),

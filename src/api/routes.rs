@@ -8,7 +8,7 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                 web::scope("/users")
                     .route("", web::get().to(user::get_all_users))
                     // .route("", web::post().to(user::create_user))
-                    .route("/{id}", web::get().to(user::get_user_by_id))
+                    .route("/{uuid}", web::get().to(user::get_user_by_uuid))
                     .route("/{id}", web::put().to(user::update_user))
                     .route("/{id}", web::delete().to(user::delete_user)),
             )
