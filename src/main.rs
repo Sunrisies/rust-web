@@ -1,26 +1,16 @@
 use actix_web::{web, App, HttpServer};
 use log::error;
 use log::info;
-use log4rs::init_file;
 use mysql_user_crud::config_routes;
 use mysql_user_crud::create_db_pool;
+use mysql_user_crud::init_logger;
 use mysql_user_crud::AppError;
 use mysql_user_crud::Logger;
 use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // 初始化日志
-    // 初始化日志系统
-    init_file("log4rs.yaml", Default::default()).unwrap();
-
-    // 记录日志信息
-    for i in 0..10000 {
-        info!("This is an info message {}", i);
-        if i % 100 == 0 {
-            error!("This is an error message {}", i);
-        }
-    }
+    init_logger();
     // env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let db_pool = create_db_pool()
         .await
@@ -34,18 +24,14 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
     let server_addr = format!("{}:{}", host, port);
     info!("11Starting server at http://{}", server_addr);
-    println!("Starting server at http://{}", server_addr);
-
+    error!("11Starting server at http://{}", server_addr);
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()
             .app_data(
                 web::JsonConfig::default()
                     .limit(4096) // 限制请求体大小
-                    .error_handler(|err, _req| {
-                        println!("打印数据1111{:?}", err);
-                        AppError::from(err).into()
-                    }),
+                    .error_handler(|err, _req| AppError::from(err).into()),
             )
             .app_data(app_data.clone())
             .wrap(Logger)

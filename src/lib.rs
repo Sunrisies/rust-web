@@ -1,10 +1,12 @@
 pub mod api;
+pub mod config;
 pub mod db;
 pub mod dto;
 pub mod error;
 pub mod middleware;
 pub mod models;
 pub use api::config_routes;
+pub use config::log::*;
 pub use db::database::create_db_pool;
 pub use error::error::AppError;
 pub use error::*;
