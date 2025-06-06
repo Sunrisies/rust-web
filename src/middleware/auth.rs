@@ -1,36 +1,15 @@
-use actix_web::web;
+use crate::AppError;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    error,
     http::header::HeaderValue,
-    middleware::ErrorHandlerResponse,
-    Error, HttpResponse,
+    Error,
 };
-use futures_util::{
-    future::{self, LocalBoxFuture},
-    FutureExt,
-};
+use futures_util::future::LocalBoxFuture;
 use log::info;
-use serde_json::json;
 use std::future::{ready, Ready};
 
-use crate::AppError;
-// 定义错误响应结构体
-#[derive(Debug, serde::Serialize)]
-struct ErrorResponse {
-    code: u16,
-    error: String,
-    message: String,
-}
-// There are two steps in middleware processing.
-// 1. Middleware initialization, middleware factory gets called with
-//    next service in chain as parameter.
-// 2. Middleware's call method gets called with normal request.
 pub struct Auth;
 
-// Middleware factory is `Transform` trait
-// `S` - type of the next service
-// `B` - type of response's body
 impl<S, B> Transform<S, ServiceRequest> for Auth
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -74,11 +53,9 @@ where
                 Ok(res)
             })
         } else {
-            // 没有权限，立即返回响应
             Box::pin(async move {
-                Err(error::ErrorUnauthorized(AppError::Unauthorized(
-                    "权限不够".to_string(),
-                )))
+                let err = AppError::Unauthorized("权限不够，请申请权限".to_string());
+                Err(err.into())
             })
         }
     }

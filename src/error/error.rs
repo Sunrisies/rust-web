@@ -81,3 +81,38 @@ impl From<actix_web::error::JsonPayloadError> for AppError {
         Self::BadRequest(message)
     }
 }
+
+// #[derive(Debug, Serialize)]
+// pub struct CustomError {
+//     pub code: u16,
+//     pub message: String,
+// }
+
+// impl From<actix_web::Error> for CustomError {
+//     fn from(e: actix_web::Error) -> Self {
+//         CustomError {
+//             code: e.as_response_error().status_code().as_u16(),
+//             message: e.to_string(),
+//         }
+//     }
+// }
+
+// impl ResponseError for CustomError {
+//     fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
+//         HttpResponse::build(self.status_code()).json(self)
+//     }
+
+//     fn status_code(&self) -> actix_web::http::StatusCode {
+//         actix_web::http::StatusCode::from_u16(self.code)
+//             .unwrap_or(actix_web::http::StatusCode::INTERNAL_SERVER_ERROR)
+//     }
+// }
+
+// impl From<actix_web::Error> for CustomError {
+//     fn from(e: actix_web::Error) -> Self {
+//         CustomError {
+//             code: e.as_response_error().status_code().as_u16(),
+//             message: e.to_string(),
+//         }
+//     }
+// }
