@@ -13,7 +13,7 @@ pub enum AppError {
     #[error("Not found: {0}")]
     NotFound(String),
 
-    #[error("Unauthorized: {0}")]
+    #[error("权限不足: {0}")]
     Unauthorized(String),
 
     #[error("请求体解析错误: {0}")]
@@ -53,8 +53,8 @@ impl ResponseError for AppError {
                 message: msg.to_string(),
             }),
             AppError::Unauthorized(msg) => HttpResponse::Unauthorized().json(ErrorResponse {
-                code: 401,
-                error: "Unauthorized".to_string(),
+                code: 403,
+                error: "权限不足".to_string(),
                 message: msg.to_string(),
             }),
             AppError::DeserializeError(msg) => HttpResponse::BadRequest().json(ErrorResponse {

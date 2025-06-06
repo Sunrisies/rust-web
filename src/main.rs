@@ -1,6 +1,8 @@
 use actix_web::{web, App, HttpServer};
 use log::{error, info};
-use mysql_user_crud::{config_routes, create_db_pool, init_logger, AppError, Logger};
+use mysql_user_crud::{
+    config_routes, create_db_pool, init_logger, middleware::auth::Auth, AppError, Logger,
+};
 use std::env;
 
 #[actix_web::main]
@@ -30,6 +32,7 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(app_data.clone())
             .wrap(Logger)
+            .wrap(Auth)
             .wrap(actix_web::middleware::Logger::default())
             .configure(config_routes)
     })

@@ -3,7 +3,7 @@ use actix_web::{
     Error,
 };
 use futures_util::future::{ready, LocalBoxFuture, Ready};
-
+use std::time::Instant;
 // 日志中间件结构体（空结构体，仅作为标记）
 pub struct Logger;
 
@@ -64,6 +64,7 @@ where
         // 记录请求信息（方法+路径）
         let method = req.method().to_string();
         let path = req.path().to_string();
+        let start_time = Instant::now();
         log::info!("Request: {} {}", method, path);
 
         // 调用原始服务处理请求
@@ -73,9 +74,14 @@ where
         Box::pin(async move {
             // 等待原始服务完成处理
             let res = fut.await?;
-
-            // 记录响应状态码
-            log::info!("Response: {}", res.status());
+            // 计算请求处理耗时
+            let duration = start_time.elapsed();
+            // 记录响应状态码和处理时间
+            log::info!(
+                "Response: {} | Time: {:.3}ms",
+                res.status(),
+                duration.as_secs_f64() * 1000.0
+            );
 
             // 返回最终响应
             Ok(res)
