@@ -21,10 +21,10 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
     let server_addr = format!("{}:{}", host, port);
     info!("11Starting server at http://{}", server_addr);
-    error!("11Starting server at http://{}", server_addr);
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()
+            // .wrap()
             .app_data(
                 web::JsonConfig::default()
                     .limit(4096) // 限制请求体大小
