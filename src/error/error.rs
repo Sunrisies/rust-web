@@ -7,10 +7,10 @@ pub enum AppError {
     #[error("服务器错误: {0}")]
     Internal(String),
 
-    #[error("Bad request: {0}")]
+    #[error("缺少参数: {0}")]
     BadRequest(String),
 
-    #[error("Not found: {0}")]
+    #[error("资源未找到: {0}")]
     NotFound(String),
 
     #[error("权限不足: {0}")]
@@ -21,6 +21,9 @@ pub enum AppError {
 
     #[error("Conflict occurred: {0}")]
     Conflict(String),
+
+    #[error("禁止访问: {0}")]
+    FORBIDDEN(String),
 
     // 缺少参数
     #[error("缺少参数: {0}")]
@@ -49,11 +52,11 @@ impl ResponseError for AppError {
             }),
             AppError::NotFound(msg) => HttpResponse::NotFound().json(ErrorResponse {
                 code: 404,
-                error: "Not Found".to_string(),
+                error: "资源未找到".to_string(),
                 message: msg.to_string(),
             }),
             AppError::Unauthorized(msg) => HttpResponse::Unauthorized().json(ErrorResponse {
-                code: 403,
+                code: 401,
                 error: "权限不足".to_string(),
                 message: msg.to_string(),
             }),
@@ -68,6 +71,11 @@ impl ResponseError for AppError {
             AppError::MissingParameter(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
                 error: "Missing Parameter".to_string(),
+                message: msg.to_string(),
+            }),
+            AppError::FORBIDDEN(msg) => HttpResponse::Forbidden().json(ErrorResponse {
+                code: 403,
+                error: "禁止访问".to_string(),
                 message: msg.to_string(),
             }),
         }

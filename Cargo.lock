@@ -2063,6 +2063,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bcrypt",
+ "bitflags 2.9.1",
  "chrono",
  "config",
  "dotenv",

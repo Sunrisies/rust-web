@@ -1,3 +1,4 @@
+use crate::config::permission::Permission;
 use crate::models::user::{self, Entity as UserEntity};
 use crate::AppError;
 use actix_web::{
@@ -69,10 +70,30 @@ pub struct TokenClaims {
     pub exp: usize, // 令牌过期时间
 }
 
+fn check_permission(permission: &Permission, target_permission: Permission) {
+    if permission.contains(target_permission) {
+        println!("具有权限");
+    } else {
+        println!("无权限");
+    }
+}
+
 fn has_permission(req: &ServiceRequest) -> bool {
     // 实现你的鉴权逻辑，根据需求判断是否有权限
     // 返回 true 表示有权限，返回 false 表示没有权限
     // unimplemented!()
+    // 分配权限
+    let admin_permission = Permission::ALL;
+    let editor_permission = Permission::READ_WRITE_ARTICLE | Permission::READ_WRITE_COMMENT;
+    let user_permission = Permission::READ_ARTICLE | Permission::READ_COMMENT;
+    let guest_permission = Permission::NONE;
+
+    // 权限检查
+    check_permission(&admin_permission, Permission::WRITE_ARTICLE); // 应该输出：具有权限
+    check_permission(&editor_permission, Permission::WRITE_USER); // 应该输出：无权限
+    check_permission(&user_permission, Permission::READ_ARTICLE); // 应该输出：具有权限
+    check_permission(&guest_permission, Permission::READ_SYSTEM); // 应该输出：无权限
+    info!("检测权限: {:?}", req.path());
     let value = HeaderValue::from_str("").unwrap();
     let token = req.headers().get("token").unwrap_or(&value);
     let ls = req.headers().get("Authorization").unwrap_or(&value);
@@ -96,8 +117,6 @@ fn has_permission(req: &ServiceRequest) -> bool {
             //     .one(db.as_ref())
             //     .await
             //     .map_err(|e| AppError::Internal(format!("获取用户时发生错误: {}", e)))?;
-
-            // 其他逻辑...
         }
         Err(err) => {
             // 处理解码错误

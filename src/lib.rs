@@ -7,7 +7,7 @@ pub mod middleware;
 pub mod models;
 pub mod types;
 pub use api::config_routes;
-pub use config::log::*;
+pub use config::*;
 pub use db::database::create_db_pool;
 pub use error::error::AppError;
 pub use error::*;

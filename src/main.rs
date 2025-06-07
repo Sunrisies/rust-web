@@ -8,7 +8,6 @@ use std::env;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
-    // env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let db_pool = create_db_pool()
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -18,7 +17,7 @@ async fn main() -> std::io::Result<()> {
 
     // 获取服务器地址和端口
     let host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = env::var("SERVER_PORT").unwrap_or_else(|_| "18080".to_string());
     let server_addr = format!("{}:{}", host, port);
     info!("11Starting server at http://{}", server_addr);
     // 启动 HTTP 服务器
