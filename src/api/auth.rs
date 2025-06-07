@@ -17,7 +17,7 @@ use std::time::SystemTime;
 use validator::Validate;
 #[derive(Debug, Serialize)]
 pub struct TokenClaims {
-    pub user_id: i32,
+    pub user_uuid: String,
     pub user_name: String,
     pub exp: usize, // 令牌过期时间
 }
@@ -77,7 +77,7 @@ pub async fn login(
         + 3600; // 令牌有效期为 1 小时
 
     let token_claims = TokenClaims {
-        user_id: credentials.id,
+        user_uuid: credentials.uuid.clone(),
         user_name: credentials.user_name.clone(),
         exp: exp as usize,
     };

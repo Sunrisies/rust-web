@@ -1,7 +1,7 @@
 use actix_web::{web, App, HttpServer};
 use log::{error, info};
 use mysql_user_crud::{
-    config_routes, create_db_pool, init_logger, middleware::auth::Auth, AppError, Logger,
+    config_routes, create_db_pool, log::init_logger, middleware::auth::Auth, AppError, Logger,
 };
 use std::env;
 

@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Debug)]
     pub struct Permission: u64 {
         const NONE = 0;
 
