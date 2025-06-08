@@ -1,5 +1,5 @@
 use crate::config::permission::Permission;
-use actix_web::{dev::ServiceRequest, guard::Guard, guard::GuardContext, Error, HttpResponse};
+use actix_web::{guard::Guard, guard::GuardContext};
 use log::{error, info};
 pub struct PermissionGuard {
     required_permission: Permission,

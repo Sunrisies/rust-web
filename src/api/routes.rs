@@ -2,12 +2,8 @@ use super::auth;
 use super::user;
 use crate::config::permission::Permission;
 use crate::utils::permission_guard::PermissionGuard;
-use actix_web::dev::ServiceRequest;
-use actix_web::guard::Guard;
-use actix_web::guard::GuardContext;
 use actix_web::web;
-use actix_web::{HttpResponse, Resource};
-use log::info;
+use actix_web::{HttpResponse};
 
 // 示例接口
 async fn get_article() -> HttpResponse {
