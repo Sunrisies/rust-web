@@ -1,9 +1,14 @@
 use super::auth;
 use super::user;
 use crate::config::permission::Permission;
+use crate::error::error::AppError;
 use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
-use actix_web::{HttpResponse};
+use actix_web::HttpResponse;
+use actix_web::Responder;
+use google_authenticator::{ErrorCorrectionLevel, GoogleAuthenticator};
+use serde::Deserialize;
+use serde_json::json;
 
 // 示例接口
 async fn get_article() -> HttpResponse {
@@ -39,6 +44,11 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                             .guard(PermissionGuard::new(Permission::WRITE_ARTICLE))
                             .to(create_article),
                     ),
+            )
+            .service(
+                web::scope("/2fa")
+                    .route("/verify", web::post().to(verify_2fa))
+                    .route("/generate", web::get().to(generate_2fa_secret)),
             ),
     );
 }
@@ -64,3 +74,44 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
 //         //     .map_or(false, |v| v == "secret")
 //     }
 // }
+
+// 添加用于处理2FA验证的端点
+async fn verify_2fa(
+    web::Json(data): web::Json<Verify2FARequest>,
+) -> Result<impl Responder, AppError> {
+    let auth = GoogleAuthenticator::new();
+    let is_valid = auth.verify_code(&data.secret, &data.code, 1, 0);
+
+    if is_valid {
+        Ok(HttpResponse::Ok().json(json!({"status": "success"})))
+    } else {
+        Ok(HttpResponse::BadRequest().json(json!({"error": "Invalid code"})))
+    }
+}
+
+// 添加用于生成2FA密钥的端点
+async fn generate_2fa_secret() -> Result<impl Responder, AppError> {
+    let auth = GoogleAuthenticator::new();
+    let secret = auth.create_secret(32); // 生成32字节的密钥
+
+    // 生成二维码URL（可选）
+    let qr_code_url = auth.qr_code_url(
+        &secret,
+        "MyApp",                      // 应用名称
+        "UserAccount",                // 账户标识
+        200,                          // 宽度
+        200,                          // 高度
+        ErrorCorrectionLevel::Medium, // 纠错级别
+    );
+
+    Ok(HttpResponse::Ok().json(json!({
+        "secret": secret,
+        "qr_code_url": qr_code_url
+    })))
+}
+
+#[derive(Deserialize)]
+struct Verify2FARequest {
+    secret: String,
+    code: String,
+}

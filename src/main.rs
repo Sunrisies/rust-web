@@ -20,6 +20,7 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "18080".to_string());
     let server_addr = format!("{}:{}", host, port);
     info!("11Starting server at http://{}", server_addr);
+
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()

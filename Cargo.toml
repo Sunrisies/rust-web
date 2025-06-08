@@ -30,6 +30,7 @@ ansi_term = "0.12.1"
 bcrypt = "0.17.0"
 jsonwebtoken = "9.3.1"
 bitflags = "2.9.1"
+google-authenticator = "0.4.2"
 
 [target.x86_64-unknown-linux-musl.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
