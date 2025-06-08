@@ -6,10 +6,13 @@ use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use google_authenticator::{ErrorCorrectionLevel, GoogleAuthenticator};
+use google_authenticator::GoogleAuthenticator;
 use serde::Deserialize;
 use serde_json::json;
-
+use base64::engine::Engine as _;
+use base64::engine::general_purpose;
+use image::Luma;
+use qrcode::QrCode;
 // 示例接口
 async fn get_article() -> HttpResponse {
     HttpResponse::Ok().body("文章列表")
@@ -94,22 +97,34 @@ async fn generate_2fa_secret() -> Result<impl Responder, AppError> {
     let auth = GoogleAuthenticator::new();
     let secret = auth.create_secret(32); // 生成32字节的密钥
 
-    // 生成二维码URL（可选）
-    let qr_code_url = auth.qr_code_url(
-        &secret,
-        "MyApp",                      // 应用名称
-        "UserAccount",                // 账户标识
-        200,                          // 宽度
-        200,                          // 高度
-        ErrorCorrectionLevel::Medium, // 纠错级别
+    // 生成OTP URI
+    let otp_uri = format!(
+        "otpauth://totp/MyApp:UserAccount?secret={}&issuer=MyApp",
+        secret
     );
+
+    // 生成二维码
+    let code = QrCode::new(otp_uri.as_bytes()).unwrap();
+    let image = code.render::<Luma<u8>>().build();
+
+    // 将二维码转换为PNG字节
+    let mut png_bytes = Vec::new();
+    image::DynamicImage::ImageLuma8(image)
+        .write_to(
+            &mut std::io::Cursor::new(&mut png_bytes),
+            image::ImageFormat::Png,
+        )
+        .unwrap();
+
+    // 转换为Base64
+    let base64_image = general_purpose::STANDARD.encode(&png_bytes);
+    let data_url = format!("data:image/png;base64,{}", base64_image);
 
     Ok(HttpResponse::Ok().json(json!({
         "secret": secret,
-        "qr_code_url": qr_code_url
+        "qr_code": data_url
     })))
 }
-
 #[derive(Deserialize)]
 struct Verify2FARequest {
     secret: String,
