@@ -1,6 +1,7 @@
 use crate::common::CommonResponse;
 use crate::dto::user::{LoginRequest, RegisterResponse};
 use crate::error::error::AppError;
+use crate::jsonwebtoken::TokenClaims;
 use crate::models::user::{self, Entity as UserEntity};
 use actix_web::{web, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
@@ -15,13 +16,7 @@ use sea_orm::{
 use serde::Serialize;
 use std::time::SystemTime;
 use validator::Validate;
-#[derive(Debug, Serialize)]
-pub struct TokenClaims {
-    pub user_uuid: String,
-    pub user_name: String,
-    pub permissions: Option<String>,
-    pub exp: usize, // 令牌过期时间
-}
+
 #[derive(Debug, Serialize)]
 pub struct UserInfo {
     pub user_name: String,

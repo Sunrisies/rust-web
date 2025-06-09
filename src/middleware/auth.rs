@@ -1,13 +1,13 @@
+use crate::jsonwebtoken::has_permission;
 use crate::AppError;
 use actix_web::http::header::HeaderMap;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
-use jsonwebtoken::{decode, Algorithm, DecodingKey, TokenData, Validation};
 use log::error;
 use sea_orm::DatabaseConnection;
-use serde::{Deserialize, Serialize};
+
 use std::{
     future::{ready, Future, Ready},
     pin::Pin,
@@ -53,15 +53,22 @@ where
         let headers = req.headers().clone(); // 克隆 headers
         let fut = self.service.call(req);
         Box::pin(async move {
-            if path == "/api/auth/login" || path == "/api/auth/register" {
+            let public_paths = vec![
+                "/api/auth/login",
+                "/api/auth/register",
+                "/api/posts",
+                "/api/comments",
+            ];
+            if public_paths.contains(&path.as_str()) {
+                // 公开接口，不需要令牌
                 let res = fut.await?;
                 Ok(res)
             } else {
                 let token = extract_token(&headers).await;
                 if let Some(token) = token {
-                    let permission_result = has_permission(&token).await;
+                    let permission_result = has_permission(&token);
                     match permission_result {
-                        Ok(token_data) => {
+                        Ok(_token_data) => {
                             let res = fut.await?;
                             Ok(res)
                         }
@@ -79,30 +86,6 @@ where
                 }
             }
         })
-    }
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TokenClaims {
-    pub user_uuid: String,
-    pub user_name: String,
-    pub exp: usize, // 令牌过期时间
-    permissions: Option<String>,
-}
-
-async fn has_permission(token: &str) -> Result<TokenData<TokenClaims>, Box<dyn std::error::Error>> {
-    let token_message = decode::<TokenClaims>(
-        token,
-        &DecodingKey::from_secret("secret_key".as_bytes()),
-        &Validation::new(Algorithm::HS256),
-    );
-
-    match token_message {
-        Ok(token_data) => Ok(token_data),
-        Err(err) => {
-            // 处理解码错误
-            error!("解码令牌时发生错误: {:?}", err);
-            Err(err.into())
-        }
     }
 }
 

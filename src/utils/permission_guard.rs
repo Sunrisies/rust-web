@@ -1,5 +1,5 @@
-use crate::config::permission::Permission;
-use actix_web::{guard::Guard, guard::GuardContext};
+use crate::{config::permission::Permission, jsonwebtoken::has_permission, AppError};
+use actix_web::{guard::Guard, guard::GuardContext, http::header};
 use log::{error, info};
 pub struct PermissionGuard {
     required_permission: Permission,
@@ -13,43 +13,27 @@ impl PermissionGuard {
     }
 }
 impl Guard for PermissionGuard {
-    fn check(&self, ctx: &GuardContext) -> bool {
-        // 从请求中获取用户权限（实际项目中可能从数据库或上下文中获取）
-        // let user_permission = get_user_permission(&req);
-        info!("PermissionGuard check{:?}", ctx);
-        error!("PermissionGuard check{:?}", &self.required_permission);
-        true
+    fn check(&self, ctx: &GuardContext<'_>) -> bool {
+        let head = ctx.head();
+        if let Some(auth_header) = head.headers.get(header::AUTHORIZATION) {
+            if let Ok(token_str) = auth_header.to_str() {
+                if let Some(token) = token_str.strip_prefix("Bearer ") {
+                    // 解码令牌并获取权限
+                    let permissions = match has_permission(token) {
+                        Ok(token_data) => Ok(token_data.claims.permissions),
+                        Err(err) => Err(err),
+                    };
+                    permissions.contains(&self.required_permission)
+                } else {
+                    error!("令牌格式不正确");
+                    false
+                }
+            } else {
+                error!("token not found");
+                false
+            }
+        } else {
+            false
+        }
     }
 }
-
-// impl actix_web::Handler<actix_web::dev::ServiceRequest, actix_web::dev::ServiceResponse>
-//     for PermissionGuard
-// {
-//     type Error = actix_web::Error;
-//     type Future = actix_web::dev::ServiceResponse;
-
-//     fn handle(
-//         &mut self,
-//         req: actix_web::dev::ServiceRequest,
-//         srv: &mut actix_web::dev::Service,
-//     ) -> Result<Self::Future, Self::Error> {
-//         // 从请求中获取用户权限（实际项目中可能从数据库或上下文中获取）
-//         let user_permission = get_user_permission(&req);
-
-//         // 检查权限
-//         if user_permission.contains(self.required_permission) {
-//             // 如果有权限，继续处理请求
-//             Ok(srv.call(req).wait()?)
-//         } else {
-//             // 如果没有权限，返回 403 禁止访问
-//             Err(actix_web::error::ErrorForbidden("无权限访问"))
-//         }
-//     }
-// }
-
-// 模拟从请求中获取用户权限
-// fn get_user_permission(req: &actix_web::dev::ServiceRequest) -> Permission {
-//     // 实际项目中从数据库或上下文中获取用户权限
-//     // 这里只是一个示例
-//     Permission::READ_WRITE_ARTICLE
-// }
