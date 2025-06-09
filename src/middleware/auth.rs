@@ -5,7 +5,7 @@ use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
-use log::error;
+use log::{error,info};
 use sea_orm::DatabaseConnection;
 
 use std::{
@@ -69,6 +69,7 @@ where
                     let permission_result = has_permission(&token);
                     match permission_result {
                         Ok(_token_data) => {
+                            info!("令牌有效");
                             let res = fut.await?;
                             Ok(res)
                         }

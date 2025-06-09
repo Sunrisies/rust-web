@@ -6,6 +6,7 @@ use crate::models::user::{self, Entity as UserEntity};
 use actix_web::{web, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
+use crate::permission::Permission;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use log::info;
 use sea_orm::entity::prelude::*;
@@ -147,6 +148,7 @@ pub async fn register(
         user_name: Set(user_data.user_name.clone()),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
+        permissions: Set(Some(Permission::READ.bits().to_string())), // 设置默认权限
         pass_word: Set(hashed_password.clone()), // 注意：这里应该存储哈希后的密码
         ..Default::default()
     };

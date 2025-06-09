@@ -28,6 +28,9 @@ pub enum AppError {
     // 缺少参数
     #[error("缺少参数: {0}")]
     MissingParameter(String),
+    
+    #[error("当前用户没有权限: {0}")]
+    Forbidden(String),
 }
 
 #[derive(Serialize)]
@@ -78,6 +81,11 @@ impl ResponseError for AppError {
                 error: "禁止访问".to_string(),
                 message: msg.to_string(),
             }),
+            AppError::Forbidden(msg) => HttpResponse::Forbidden().json(ErrorResponse {
+                code: 403,
+                error: "当前用户没有权限".to_string(),
+                message: msg.to_string(),
+            })
         }
     }
 }

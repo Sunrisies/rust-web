@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Permission: u64 {
         const NONE = 0;
 
@@ -45,6 +45,15 @@ bitflags! {
         const WRITE_MESSAGE = 1 << 15;
         const READ_WRITE_MESSAGE = Self::READ_MESSAGE.bits() | Self::WRITE_MESSAGE.bits();
 
+        // 所以的观看权限
+        const READ = Self::READ_ARTICLE.bits()
+            | Self::READ_COMMENT.bits()
+            | Self::READ_USER.bits()
+            | Self::READ_SYSTEM.bits()
+            | Self::READ_FILE.bits()
+            | Self::READ_TAG.bits()
+            | Self::READ_CATEGORY.bits()
+            | Self::READ_MESSAGE.bits();
         // 所有权限
         const ALL = !0;
     }

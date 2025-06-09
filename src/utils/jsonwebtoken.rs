@@ -1,6 +1,7 @@
 use jsonwebtoken::{decode, Algorithm, DecodingKey, TokenData, Validation};
 use log::error;
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenClaims {
     pub user_uuid: String,
