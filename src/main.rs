@@ -32,7 +32,7 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(app_data.clone())
             .wrap(Logger)
-            .wrap(Auth::new(app_data.clone().into_inner()))
+            .wrap(Auth)
             .wrap(actix_web::middleware::Logger::default())
             .configure(config_routes)
     })

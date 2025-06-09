@@ -19,6 +19,7 @@ use validator::Validate;
 pub struct TokenClaims {
     pub user_uuid: String,
     pub user_name: String,
+    pub permissions: Option<String>,
     pub exp: usize, // 令牌过期时间
 }
 #[derive(Debug, Serialize)]
@@ -80,6 +81,7 @@ pub async fn login(
         user_uuid: credentials.uuid.clone(),
         user_name: credentials.user_name.clone(),
         exp: exp as usize,
+        permissions: credentials.permissions.clone(),
     };
 
     let token = encode(
