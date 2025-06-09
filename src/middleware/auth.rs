@@ -1,6 +1,8 @@
 // use crate::config::permission::Permission;
-// use crate::models::user::{self, Entity as UserEntity};
+use crate::models::user::{self, Entity as UserEntity};
 use crate::AppError;
+use actix_web::http::header;
+use actix_web::HttpMessage;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     http::header::HeaderValue,
@@ -23,7 +25,6 @@ pub struct Auth {
 }
 
 impl Auth {
-
     pub fn new(db_pool: Arc<DbPool>) -> Self {
         Self { db_pool }
     }
@@ -70,32 +71,43 @@ where
         // let req_arc = Arc::new(req);
         let db_pool = Arc::clone(&self.db_pool);
         // 进行鉴权操作，判断是否有权限
-        if has_permission(&req, &db_pool) {
-            // 有权限，继续执行后续中间件
-            let fut = self.service.call(req);
-            Box::pin(async move {
-                let res = fut.await?;
-                Ok(res)
-            })
-        } else {
-            Box::pin(async move {
-                let err = AppError::Unauthorized("权限不够，请申请权限".to_string());
-                Err(err.into())
-            })
-        }
-
-        // Box::pin(async move {
-        //     let req_clone = req;
-        //     let sa = has_permission(&req_clone, &db_pool).await;
-        //     if sa {
-        //         let fut = self.service.call(req);
+        // if has_permission(&req, &db_pool) {
+        //     // 有权限，继续执行后续中间件
+        //     let fut = self.service.call(req);
+        //     Box::pin(async move {
         //         let res = fut.await?;
         //         Ok(res)
-        //     } else {
+        //     })
+        // } else {
+        //     Box::pin(async move {
         //         let err = AppError::Unauthorized("权限不够，请申请权限".to_string());
         //         Err(err.into())
-        //     }
-        // })
+        //     })
+        // }
+        // let req_clone = req.clone();
+        let path = req.path().to_string(); // 克隆 path
+        let headers = req.headers().clone(); // 克隆 headers
+
+        let fut = self.service.call(req);
+        Box::pin(async move {
+            match has_permission(&headers, &db_pool).await {
+                Ok(Some(permission)) => {
+                    let res = fut.await?;
+                    Ok(res)
+                }
+                Ok(None) => {
+                    // 权限不够，请申请权限
+                    let err = AppError::Unauthorized("权限不够，请申请权限".to_string());
+                    Err(err.into())
+                }
+                Err(err) => {
+                    // 处理解码错误
+                    error!("解码令牌时发生错误: {:?}", err);
+                    let err = AppError::Unauthorized("无效的令牌".to_string());
+                    Err(err.into())
+                }
+            }
+        })
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,12 +138,14 @@ pub struct TokenClaims {
 //     check_permission(&editor_permission, Permission::WRITE_USER); // 应该输出：无权限
 //     check_permission(&user_permission, Permission::READ_ARTICLE); // 应该输出：具有权限
 //     check_permission(&guest_permission, Permission::READ_SYSTEM); // 应该输出：无权限
- fn has_permission(req: &ServiceRequest, db_pool: &Arc<DbPool>) -> bool {
-    info!("检测权限: {:?}", req.path());
-    let _db: &DatabaseConnection = &db_pool;
+async fn has_permission(
+    headers: &actix_web::http::header::HeaderMap,
+    db_pool: &Arc<DbPool>,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let db: &DatabaseConnection = &db_pool;
     let value = HeaderValue::from_str("").unwrap();
-    let token = req.headers().get("token").unwrap_or(&value);
-    let ls = req.headers().get("Authorization").unwrap_or(&value);
+    let token = headers.get("token").unwrap_or(&value);
+    let ls = headers.get("Authorization").unwrap_or(&value);
     info!("ls: {}", ls.to_str().unwrap());
     let token_message = decode::<TokenClaims>(
         token.to_str().unwrap(),
@@ -147,31 +161,36 @@ pub struct TokenClaims {
             info!("User ID: {}", user_uuid);
             info!("User Name: {}", user_name);
 
-            // 示例：从数据库中获取用户信息
-            // let user = UserEntity::find_by_uuid(&user_uuid)
-            //     .one(db)
-            //     .await
-            //     .map_err(|e| AppError::Internal(format!("获取用户时发生错误: {}", e)))?;
-            // match UserEntity::find_by_uuid(&user_uuid).one(db).await {
-            //     Ok(Some(user)) => {
-            //         // 检查用户权限（根据您的实际权限逻辑调整）
-            //         info!("User: {:#?}", user);
-            //         ()
-            //         // user.permissions >= 2 // 示例：权限级别2以上
-            //         // user.permission_level >= 2 // 示例：权限级别2以上
-            //     }
-            //     Ok(None) => (), // 用户不存在
-            //     Err(_) => (),   // 查询错误
-            // }
+            match UserEntity::find_by_uuid(&user_uuid).one(db).await {
+                Ok(Some(user)) => {
+                    info!("User: {:#?}", user);
+                    if let Some(permissions) = user.permissions {
+                        info!("Permissions from database: {}", permissions);
+                        return Ok(Some(permissions));
+                    } else {
+                        error!("User has no permissions set.");
+                        Ok(None)
+                    }
+                }
+                Ok(None) => {
+                    error!("User not found.");
+                    Ok(None)
+                } // 用户不存在
+                Err(err) => {
+                    error!("Database error: {:?}", err);
+                    Err(err.into())
+                } // 查询错误
+            }
         }
         Err(err) => {
             // 处理解码错误
             error!("解码令牌时发生错误: {:?}", err);
+            Err(err.into())
             // return Err(AppError::Unauthorized("无效的令牌".into()));
         }
     }
 
     // 获取完token进行解析
-    info!("token: {}", token.to_str().unwrap());
-    token.len() > 0 || req.path().to_string() == "/login"
+    // info!("token: {}", token.to_str().unwrap());
+    // token.len() > 0 || path.to_string() == "/login"
 }
