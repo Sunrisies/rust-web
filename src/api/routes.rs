@@ -55,28 +55,6 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             ),
     );
 }
-// 定义一个简单的守卫
-// struct PermissionGuard;
-
-// impl Guard for PermissionGuard {
-//     fn new(permission: Permission) -> Self {
-//         Self
-//     }
-//     fn check(&self, ctx: &GuardContext) -> bool {
-//         // 在这里添加你的守卫逻辑
-//         // 例如检查请求头中是否包含特定的令牌
-//         // 现在假设用户是超级管理员，权限都有
-//         let user_id = 1;
-//         info!("SimpleGuard check{:?}", ctx);
-//         // ctx.header();
-
-//         true
-//         // 检查请求头中的 `X-API-Key` 是否等于 `"secret"`
-//         // ctx.headers()
-//         //     .get("X-API-Key")
-//         //     .map_or(false, |v| v == "secret")
-//     }
-// }
 
 // 添加用于处理2FA验证的端点
 async fn verify_2fa(
