@@ -5,7 +5,7 @@ use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
-use log::{error,info};
+use log::{error, info};
 use sea_orm::DatabaseConnection;
 
 use std::{

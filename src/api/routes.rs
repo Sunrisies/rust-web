@@ -6,13 +6,13 @@ use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use google_authenticator::GoogleAuthenticator;
-use serde::Deserialize;
-use serde_json::json;
-use base64::engine::Engine as _;
 use base64::engine::general_purpose;
+use base64::engine::Engine as _;
+use google_authenticator::GoogleAuthenticator;
 use image::Luma;
 use qrcode::QrCode;
+use serde::Deserialize;
+use serde_json::json;
 // 示例接口
 async fn get_article() -> HttpResponse {
     HttpResponse::Ok().body("文章列表")

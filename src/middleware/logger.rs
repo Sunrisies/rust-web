@@ -74,8 +74,11 @@ where
         Box::pin(async move {
             // 等待原始服务完成处理
             let res = fut.await?;
-            // 计算请求处理耗时
+            //    计算请求处理耗时
             let duration = start_time.elapsed();
+            // 打印一下res的所有数据
+            // log::debug!("Response: {:#?}", res);
+            log::error!("Response: {:#?}", res.headers());
             // 记录响应状态码和处理时间
             log::info!(
                 "Response: {} | Time: {:.3}ms",

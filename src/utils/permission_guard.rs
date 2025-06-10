@@ -1,5 +1,8 @@
 use crate::{config::permission::Permission, jsonwebtoken::has_permission, AppError};
-use actix_web::{guard::Guard, guard::GuardContext, http::header};
+use actix_web::{
+    guard::{Guard, GuardContext},
+    http::header,
+};
 use log::{error, info};
 pub struct PermissionGuard {
     required_permission: Permission,
@@ -14,6 +17,18 @@ impl PermissionGuard {
 }
 impl Guard for PermissionGuard {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
+        match self.check_permission(ctx) {
+            Ok(result) => result,
+            Err(err) => {
+                error!("权限检查错误: {}", err);
+                false
+            }
+        }
+    }
+}
+
+impl PermissionGuard {
+    fn check_permission(&self, ctx: &GuardContext<'_>) -> Result<bool, AppError> {
         let head = ctx.head();
         if let Some(auth_header) = head.headers.get(header::AUTHORIZATION) {
             if let Ok(token_str) = auth_header.to_str() {
@@ -23,7 +38,7 @@ impl Guard for PermissionGuard {
                         Ok(token_data) => token_data.claims.permissions,
                         Err(err) => {
                             eprintln!("Permission check error: {}", err);
-                            return false;
+                            return Err(AppError::Forbidden(err.to_string()));
                         }
                     };
 
@@ -36,40 +51,32 @@ impl Guard for PermissionGuard {
                                 "Stored permissions: {:?}, Required permissions: {:?}",
                                 stored_permissions, self.required_permission
                             );
-                            // return stored_permissions.contains(*self.required_permission);
-                            // 2. 宽松检查（包含任一要求的权限）
-                            return stored_permissions.intersects(self.required_permission);
-                        }else {
-                            false
+
+                            // 返回检查结果
+                            if stored_permissions.intersects(self.required_permission) {
+                                Ok(true)
+                            } else {
+                                Err(AppError::Forbidden("权限不足11".to_string()))
+                            }
+                        } else {
+                            Err(AppError::Forbidden("权限字符串格式错误".to_string()))
                         }
-                    }else {
-                        false
+                    } else {
+                        Err(AppError::Forbidden("权限字符串为空".to_string()))
                     }
-                    // 解包 permissions
-                    //  if let Some(permissions_vec) = permissions {
-                    //     // 检查权限是否包含 required_permission
-                    //     if let Some(required_permission) = self.required_permission {
-                    //         if permissions_vec.contains(&required_permission.to_string()) {
-                    //             true
-                    //         } else {
-                    //             false
-                    //         }
-                    //     } else {
-                    //         false
-                    //     }
-                    // } else {
-                    //     false
-                    // }
                 } else {
                     error!("令牌格式不正确");
-                    false
+                    Err(AppError::Forbidden("令牌格式不正确".to_string()))
                 }
             } else {
                 error!("token not found");
-                false
+                Err(AppError::Forbidden("token not found".to_string()))
             }
         } else {
-            false
+            error!("Authorization header not found");
+            Err(AppError::Forbidden(
+                "Authorization header not found".to_string(),
+            ))
         }
     }
 }

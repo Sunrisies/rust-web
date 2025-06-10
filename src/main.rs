@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         App::new()
-            // .wrap()
+            // .wrap(ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_header))
             .app_data(
                 web::JsonConfig::default()
                     .limit(4096) // 限制请求体大小
