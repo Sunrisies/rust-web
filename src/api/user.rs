@@ -1,3 +1,4 @@
+use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::models::user::{self, Entity as UserEntity};
 use actix_web::{web, HttpResponse, Result};
@@ -7,6 +8,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 const DEFAULT_PAGE_SIZE: u64 = 10;
@@ -42,13 +44,6 @@ pub struct PaginationInfo {
     limit: u64,
     has_next: bool,
     has_previous: bool,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateUserRequest {
-    user_name: String,
-    email: String,
-    age: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -144,118 +139,185 @@ pub async fn get_user_by_uuid(
     }
 }
 
-// 更新用户
+// // 更新用户
+// pub async fn update_user(
+//     db: web::Data<DatabaseConnection>,
+//     id: web::Path<i32>,
+//     user_data: web::Json<UpdateUserRequest>,
+// ) -> Result<HttpResponse> {
+//     // 验证ID
+//     if *id <= 0 {
+//         let error_response = ErrorResponse {
+//             error: "用户ID必须大于0".to_string(),
+//         };
+//         return Ok(HttpResponse::BadRequest().json(error_response));
+//     }
+
+//     // 验证用户名不为空
+//     if user_data.user_name.trim().is_empty() {
+//         let error_response = ErrorResponse {
+//             error: "用户名不能为空".to_string(),
+//         };
+//         return Ok(HttpResponse::BadRequest().json(error_response));
+//     }
+
+//     // 验证邮箱不为空
+//     if user_data.email.trim().is_empty() {
+//         let error_response = ErrorResponse {
+//             error: "邮箱不能为空".to_string(),
+//         };
+//         return Ok(HttpResponse::BadRequest().json(error_response));
+//     }
+
+//     // 获取现有用户
+//     let existing_user = UserEntity::find_by_id(*id)
+//         .one(db.as_ref())
+//         .await
+//         .map_err(|e| AppError::Internal(format!("检查用户信息失败: {}", e)))?;
+
+//     let existing_user = match existing_user {
+//         Some(user) => user,
+//         None => {
+//             let error_response = ErrorResponse {
+//                 error: format!("ID为{}的用户不存在", id),
+//             };
+//             return Ok(HttpResponse::NotFound().json(error_response));
+//         }
+//     };
+
+//     // 检查用户名是否被其他用户占用
+//     if existing_user.user_name != user_data.user_name {
+//         let username_exists = UserEntity::find()
+//             .filter(user::Column::UserName.eq(&user_data.user_name))
+//             .filter(user::Column::Id.ne(*id)) // 排除当前用户
+//             .count(db.as_ref())
+//             .await
+//             .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
+//             > 0;
+
+//         if username_exists {
+//             let error_response = ErrorResponse {
+//                 error: format!("用户名 '{}' 已存在", user_data.user_name),
+//             };
+//             return Ok(HttpResponse::Conflict().json(error_response));
+//         }
+//     }
+
+//     // 创建更新模型
+//     let mut user_active: user::ActiveModel = existing_user.into();
+
+//     // 更新字段
+//     user_active.user_name = Set(user_data.user_name.clone());
+//     // user_active.email = Set(user_data.email.clone());
+//     user_active.age = Set(user_data.age);
+
+//     // 如果需要更新时间戳
+//     user_active.updated_at = Set(Utc::now());
+
+//     // 执行更新
+//     let updated_user = user_active
+//         .update(db.as_ref())
+//         .await
+//         .map_err(|e| AppError::Internal(format!("更新用户信息失败: {}", e)))?;
+
+//     Ok(HttpResponse::Ok().json(updated_user))
+// }
+
 pub async fn update_user(
     db: web::Data<DatabaseConnection>,
-    id: web::Path<i32>,
+    uuid: web::Path<String>,
     user_data: web::Json<UpdateUserRequest>,
-) -> Result<HttpResponse> {
-    // 验证ID
-    if *id <= 0 {
+) -> Result<HttpResponse, AppError> {
+    // 验证UUID格式
+    if uuid.is_empty() || uuid.len() != 36 {
         let error_response = ErrorResponse {
-            error: "用户ID必须大于0".to_string(),
+            error: "无效的UUID格式".to_string(),
         };
         return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
-    // 验证用户名不为空
-    if user_data.user_name.trim().is_empty() {
-        let error_response = ErrorResponse {
-            error: "用户名不能为空".to_string(),
-        };
-        return Ok(HttpResponse::BadRequest().json(error_response));
-    }
-
-    // 验证邮箱不为空
-    if user_data.email.trim().is_empty() {
-        let error_response = ErrorResponse {
-            error: "邮箱不能为空".to_string(),
-        };
-        return Ok(HttpResponse::BadRequest().json(error_response));
-    }
-
-    // 获取现有用户
-    let existing_user = UserEntity::find_by_id(*id)
+    // 2. 获取现有用户
+    let existing_user = UserEntity::find_by_uuid(&uuid)
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("检查用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("查询用户失败: {}", e)))?;
 
-    let existing_user = match existing_user {
-        Some(user) => user,
-        None => {
-            let error_response = ErrorResponse {
-                error: format!("ID为{}的用户不存在", id),
-            };
-            return Ok(HttpResponse::NotFound().json(error_response));
-        }
-    };
+    let existing_user =
+        existing_user.ok_or_else(|| AppError::NotFound(format!("ID为{}的用户不存在", uuid)))?;
 
-    // 检查用户名是否被其他用户占用
-    if existing_user.user_name != user_data.user_name {
-        let username_exists = UserEntity::find()
-            .filter(user::Column::UserName.eq(&user_data.user_name))
-            .filter(user::Column::Id.ne(*id)) // 排除当前用户
-            .count(db.as_ref())
-            .await
-            .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
-            > 0;
-
-        if username_exists {
-            let error_response = ErrorResponse {
-                error: format!("用户名 '{}' 已存在", user_data.user_name),
-            };
-            return Ok(HttpResponse::Conflict().json(error_response));
-        }
-    }
-
-    // 创建更新模型
+    // 3. 准备更新模型
     let mut user_active: user::ActiveModel = existing_user.into();
 
-    // 更新字段
-    user_active.user_name = Set(user_data.user_name.clone());
-    // user_active.email = Set(user_data.email.clone());
-    user_active.age = Set(user_data.age);
+    // 4. 用户名更新逻辑
 
-    // 如果需要更新时间戳
+    if user_active.user_name != Set(user_data.user_name.clone()) {
+        let exists = UserEntity::find()
+            .filter(user::Column::UserName.eq(&user_data.user_name))
+            .filter(user::Column::Uuid.ne(&*uuid))
+            .count(db.as_ref())
+            .await
+            .map_err(|e| AppError::Internal(format!("用户名检查失败: {}", e)))?
+            > 0;
+
+        if exists {
+            return Err(AppError::Conflict(format!(
+                "用户名'{}'已存在",
+                user_data.user_name
+            )));
+        }
+        user_active.user_name = Set(user_data.user_name.clone());
+    }
+
+    // 5. 权限更新逻辑
+    if let Some(permissions) = &user_data.permissions {
+        // 这里可以添加权限验证逻辑
+        // 例如：检查权限是否在预定义列表中
+        let valid_perms = ["READ_ARTICLE", "WRITE_ARTICLE"]; // 示例权限列表
+        for perm in permissions {
+            if !valid_perms.contains(&perm.as_str()) {
+                return Err(AppError::BadRequest(format!("无效权限: {}", perm)));
+            }
+        }
+        user_active.permissions = Set(Some(permissions.join(",")));
+    }
+
+    // 6. 其他字段更新
+    // if let Some(image) = &user_data.image {
+    //     user_active.avatar = Set(image.clone());
+    // }
+
+    // 7. 更新时间戳
     user_active.updated_at = Set(Utc::now());
 
-    // 执行更新
+    // 8. 执行更新
     let updated_user = user_active
         .update(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("更新用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("更新失败: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(updated_user))
 }
+
 // 删除用户
 pub async fn delete_user(
     db: web::Data<DatabaseConnection>,
-    id: web::Path<i32>,
-) -> Result<HttpResponse> {
-    // 验证ID
-    if *id <= 0 {
-        let error_response = ErrorResponse {
-            error: "用户ID必须大于0".to_string(),
-        };
-        return Ok(HttpResponse::BadRequest().json(error_response));
+    uuid: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    log::error!("触发了删除用户的函数");
+    // 验证UUID格式
+    if uuid.is_empty() || uuid.len() != 36 {
+        return Err(AppError::BadRequest("无效的UUID格式".to_string()));
     }
 
-    // 执行删除并检查结果
-    let delete_result = UserEntity::delete_by_id(*id)
-        .exec(db.as_ref())
+    let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid)
         .await
-        .map_err(|e| AppError::Internal(format!("删除用户失败: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("删除用户时出错: {}", e)))?;
 
-    // 检查是否成功删除
     if delete_result.rows_affected == 0 {
-        let error_response = ErrorResponse {
-            error: format!("ID为{}的用户不存在", id),
-        };
-        return Ok(HttpResponse::NotFound().json(error_response));
+        Err(AppError::NotFound(format!("UUID 为 {} 的用户不存在", uuid)))
+    } else {
+        Ok(HttpResponse::Ok().json(json!({
+            "message": format!("UUID 为 {} 的用户已删除", uuid)
+        })))
     }
-
-    // 成功删除，返回200 OK并附带成功消息
-    Ok(HttpResponse::Ok().json(json!({
-        "message": format!("用户ID {} 已成功删除", *id)
-    })))
 }

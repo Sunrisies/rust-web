@@ -30,7 +30,7 @@ pub struct CreateUserRequest {
 
 #[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RegisterResponse {
-    #[validate(length(min = 10, max = 100, message = "用户名长度必须在5到100之间"))]
+    #[validate(length(min = 5, max = 100, message = "用户名长度必须在5到100之间"))]
     pub user_name: String,
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     pub pass_word: String,
@@ -38,8 +38,17 @@ pub struct RegisterResponse {
 
 #[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct LoginRequest {
-    #[validate(length(min = 10, max = 100, message = "用户名长度必须在5到100之间"))]
+    #[validate(length(min = 5, max = 100, message = "用户名长度必须在5到100之间"))]
     pub user_name: String,
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     pub pass_word: String,
+}
+
+#[derive(Deserialize, Debug, Default, Clone, Serialize, Validate)]
+pub struct UpdateUserRequest {
+    #[validate(length(min = 5, max = 100, message = "用户名长度必须在5到100之间"))]
+    pub user_name: String,
+    #[serde(rename = "image")]
+    pub image: Option<String>,
+    pub permissions: Option<Vec<String>>,
 }

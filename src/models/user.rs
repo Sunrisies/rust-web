@@ -1,4 +1,4 @@
-use sea_orm::entity::prelude::*;
+use sea_orm::{entity::prelude::*, DeleteResult};
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "users")]
@@ -30,6 +30,18 @@ impl Entity {
     // 添加按UUID查询的方法
     pub fn find_by_uuid(uuid: &str) -> Select<Entity> {
         Self::find().filter(Column::Uuid.eq(uuid))
+    }
+
+    // 添加使用UUID删除的方法
+    pub async fn delete_by_uuid(
+        db: &DatabaseConnection,
+        uuid: &str,
+    ) -> Result<DeleteResult, sea_orm::DbErr> {
+        let result = Self::delete_many()
+            .filter(Column::Uuid.eq(uuid))
+            .exec(db)
+            .await?;
+        Ok(result)
     }
 }
 

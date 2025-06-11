@@ -149,7 +149,7 @@ pub async fn register(
         user_name: Set(user_data.user_name.clone()),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        permissions: Set(Some(Permission::READ.bits().to_string())), // 设置默认权限
+        permissions: Set(Some(Permission::ALL.bits().to_string())), // 设置默认权限
         pass_word: Set(hashed_password.clone()), // 注意：这里应该存储哈希后的密码
         ..Default::default()
     };
