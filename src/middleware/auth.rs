@@ -7,7 +7,6 @@ use actix_web::{
 };
 use log::{error, info};
 use sea_orm::DatabaseConnection;
-
 use std::{
     future::{ready, Future, Ready},
     pin::Pin,
@@ -51,6 +50,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let path = req.path().to_string(); // 克隆 path
         let headers = req.headers().clone(); // 克隆 headers
+        error!("path: {}, headers: {:?}", path, headers);
         let fut = self.service.call(req);
         Box::pin(async move {
             let public_paths = vec![
@@ -60,7 +60,6 @@ where
                 "/api/comments",
             ];
             if public_paths.contains(&path.as_str()) {
-                // 公开接口，不需要令牌
                 let res = fut.await?;
                 Ok(res)
             } else {

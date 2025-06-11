@@ -1,6 +1,4 @@
 use crate::{config::permission::Permission, jsonwebtoken::has_permission, AppError};
-use actix_web::dev::Response;
-use actix_web::http::StatusCode;
 use actix_web::{
     guard::{Guard, GuardContext},
     http::header,
@@ -8,12 +6,6 @@ use actix_web::{
 use log::{error, info};
 use std::cell::RefCell;
 use std::rc::Rc;
-// 自定义错误容器
-#[derive(Debug)]
-pub struct GuardError {
-    pub status: StatusCode,
-    pub message: String,
-}
 
 pub struct PermissionGuard {
     required_permission: Permission,
@@ -31,17 +23,7 @@ impl Guard for PermissionGuard {
         match self.check_permission(ctx) {
             Ok(result) => result,
             Err(err) => {
-                error!("权限检查错误: {}", err);
-                // 创建错误信息
-                let error = GuardError {
-                    status: StatusCode::FORBIDDEN,
-                    message: "权限不足".to_string(),
-                };
-                error!("-----------{:?}", error);
-                // ctx.req_data().insert(error);
-                ctx.req_data_mut()
-                    .insert(Rc::new(RefCell::new(Some(error))));
-
+                ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(err))));
                 false
             }
         }

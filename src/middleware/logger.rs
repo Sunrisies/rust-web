@@ -3,15 +3,7 @@ use actix_web::{
     Error,
 };
 use futures_util::future::{ready, LocalBoxFuture, Ready};
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::time::Instant;
-
-// #[derive(Debug)]
-// pub struct GuardError {
-//     pub status: StatusCode,
-//     pub message: String,
-// }
 
 // 日志中间件结构体（空结构体，仅作为标记）
 pub struct Logger;
@@ -45,7 +37,6 @@ where
 pub struct LoggerMiddleware<S> {
     service: S, // 被包装的原始服务
 }
-
 // 为中间件实现Service trait
 impl<S, B> Service<ServiceRequest> for LoggerMiddleware<S>
 where
@@ -76,25 +67,11 @@ where
         let start_time = Instant::now();
         log::info!("Request: {} {}", method, path);
 
-        // 调用原始服务处理请求
-        let fut = self.service.call(req);
-
         // 创建异步块处理响应
+        let fut = self.service.call(req);
         Box::pin(async move {
-            // 等待原始服务完成处理
             let res = fut.await?;
-            // res.
-            // match res
-            //     .extensions_mut()
-            //     .get_mut::<Rc<RefCell<Option<GuardError>>>>()
-            // {
-            //     Some(error_cell) => {
-            //         error!("error_cell: {:?}", error_cell);
-            //     }
-            //     None => {
-            //         error!("No error cell found in request extensions");
-            //     }
-            // }
+
             //    计算请求处理耗时
             let duration = start_time.elapsed();
             // 打印一下res的所有数据
