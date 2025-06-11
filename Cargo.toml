@@ -34,6 +34,8 @@ google-authenticator = "0.4.2"
 qrcode = "0.14.1"
 image = "0.25.6"
 base64 = "0.22.1"
+actix-cors = "0.7.1"
+lazy_static = "1.5.0"
 
 [target.x86_64-unknown-linux-musl.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }

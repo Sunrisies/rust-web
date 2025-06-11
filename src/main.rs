@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{middleware::ErrorHandlers, web, App, HttpServer};
 use log::info;
 use mysql_user_crud::{
@@ -24,6 +25,12 @@ async fn main() -> std::io::Result<()> {
 
     // 启动 HTTP 服务器
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("http://127.0.0.1:5502")
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+            .allowed_headers(vec!["Content-Type", "Authorization", "ACCEPT"])
+            .supports_credentials()
+            .max_age(3600);
         App::new()
             .wrap(ErrorHandlers::new().default_handler(add_error_header))
             .app_data(
@@ -36,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Auth)
             .wrap(actix_web::middleware::Logger::default())
             .configure(config_routes)
+            .wrap(cors)
     })
     .bind(&server_addr)?
     .run()

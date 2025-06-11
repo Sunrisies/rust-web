@@ -1,6 +1,6 @@
 use super::auth;
 use super::user;
-use crate::config::permission::Permission;
+use crate::config::permission::{Permission, PERMISSION_LIST, PERMISSION_MAP};
 use crate::error::error::AppError;
 use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
@@ -11,7 +11,7 @@ use base64::engine::Engine as _;
 use google_authenticator::GoogleAuthenticator;
 use image::Luma;
 use qrcode::QrCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 // 示例接口
 async fn get_article() -> HttpResponse {
@@ -37,7 +37,9 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/auth")
                     .route("/login", web::post().to(auth::login))
-                    .route("/register", web::post().to(auth::register)),
+                    .route("/register", web::post().to(auth::register))
+                    .route("/permissions", web::get().to(get_permissions))
+                    .route("/permission", web::get().to(get_permissions_by_id)),
             )
             .service(
                 web::resource("/articles")
@@ -55,7 +57,73 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             ),
     );
 }
+#[derive(Serialize)]
+struct PermissionResponse {
+    data: Vec<String>,
+    code: u16,
+}
 
+#[derive(Deserialize)]
+struct PermissionRequest {
+    permissions: String,
+}
+// 解析权限ID并返回权限信息
+async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> impl Responder {
+    log::error!("permission_id: {}", query.permissions);
+    match query.permissions.parse::<u64>() {
+        Ok(permissions_bits) => {
+            let stored_permissions =
+                Permission::from_bits(permissions_bits).unwrap_or(Permission::NONE);
+            let permission_names = stored_permissions
+                .iter_names()
+                .map(|(name, _)| name.to_string())
+                .collect::<Vec<_>>();
+
+            let response = PermissionResponse {
+                data: permission_names,
+                code: 200,
+            };
+
+            HttpResponse::Ok().json(response)
+        }
+        Err(_) => {
+            let response = PermissionResponse {
+                data: vec![],
+                code: 400,
+            };
+            HttpResponse::BadRequest().json(response)
+        }
+    }
+}
+
+async fn get_permissions() -> impl Responder {
+    // let permission_list = PERMISSION_LIST
+    //     .iter()
+    //     .map(|(name, description)| serde_json::json!({"name": name, "description": description}))
+    //     .collect::<Vec<_>>();
+
+    // HttpResponse::Ok().json(permission_list)
+
+    let permission_list = PERMISSION_LIST
+        .iter()
+        .filter(|(name, _)| {
+            if let Some(perm) = PERMISSION_MAP.get(*name) {
+                // 判断是否是单一权限（二进制表示中只有一个1）
+                perm.bits().count_ones() == 1
+            } else {
+                false
+            }
+        })
+        .map(|(name, description)| {
+            serde_json::json!({
+                "name": name,
+                "description": description
+            })
+        })
+        .collect::<Vec<_>>();
+
+    HttpResponse::Ok().json(permission_list)
+}
 // 添加用于处理2FA验证的端点
 async fn verify_2fa(
     web::Json(data): web::Json<Verify2FARequest>,
