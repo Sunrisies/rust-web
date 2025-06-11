@@ -1,133 +1,57 @@
-// use actix_web::{
-//     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-//     Error,
-// };
-// use futures_util::future::{LocalBoxFuture, Ready};
-// use std::rc::Rc;
+use crate::AppError;
+use actix_web::{
+    dev::ServiceResponse, http::StatusCode, middleware::ErrorHandlerResponse, HttpMessage,
+    HttpResponse, Result,
+};
+use log::error;
+use serde_json::json;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-// // // 中间件工厂
-// // pub struct ErrorHandler;
+pub fn add_error_header<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+    let (req, _res) = res.into_parts();
 
-// // impl<S: 'static, B> Transform<S, ServiceResponse> for ErrorHandler
-// // where
-// //     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-// //     B: 'static,
-// // {
-// //     type Response = ServiceResponse<B>;
-// //     type Error = Error;
-// //     type Transform = ErrorHandlerMiddleware<S>;
-// //     type InitError = ();
-// //     type Future = Ready<Result<Self::Transform, Self::InitError>>;
+    let error_response = match req.extensions().get::<Rc<RefCell<Option<AppError>>>>() {
+        Some(error_cell) => {
+            error!("error_cel1111l: {:?}", error_cell);
+            let error = error_cell.borrow();
+            if let Some(app_error) = error.as_ref() {
+                // 从AppError中提取错误信息
+                let error_message = app_error.to_string();
+                error!("拦截到应用错误: {}", error_message);
 
-// //     // fn new_transform(&self, service: S) -> Self::Future {
-// //     //     future::ready(Ok(ErrorHandlerMiddleware {
-// //     //         service: Rc::new(service),
-// //     //     }))
-// //     // }
-// // }
+                // 根据错误类型设置HTTP状态码
+                let status_code = match app_error {
+                    AppError::Forbidden(_) => StatusCode::FORBIDDEN,
+                    AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+                    _ => StatusCode::INTERNAL_SERVER_ERROR,
+                };
 
-// // // 中间件实现
-// // pub struct ErrorHandlerMiddleware<S> {
-// //     service: S,
-// // }
+                // 构建JSON响应
+                HttpResponse::build(status_code).json(json!({
+                    "message": error_message,
+                    "code": status_code.as_u16()
+                }))
+            } else {
+                // 没有具体错误时的默认响应
+                HttpResponse::InternalServerError().json(json!({
+                    "message": "未知错误",
+                    "code": 500
+                }))
+            }
+        }
+        None => {
+            error!("请求中未找到错误信息");
+            HttpResponse::InternalServerError().json(json!({
+                "message": "服务器内部错误",
+                "code": 500
+            }))
+        }
+    };
 
-// // impl<S, B> Service<ServiceRequest> for ErrorHandlerMiddleware<S>
-// // where
-// //     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-// //     B: 'static,
-// // {
-// //     type Response = ServiceResponse<B>;
-// //     type Error = Error;
-// //     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    let new_res = ServiceResponse::new(req, error_response)
+        .map_into_boxed_body()
+        .map_into_right_body();
 
-// //     actix_web::dev::forward_ready!(service);
-
-// //     fn call(&self, req: ServiceRequest) -> Self::Future {
-// //         let service = Rc::clone(&self.service);
-// //         Box::pin(async move {
-// //             // 先执行后续服务（控制器等）
-// //             let res = service.call(req).await?;
-
-// //             // 检查响应状态码
-// //             if res.status().is_server_error() {
-// //                 // 获取原始响应
-// //                 let (req, res) = res.into_parts();
-// //                 let (res, body) = res.into_parts();
-
-// //                 // 构建自定义错误响应
-// //                 let error_json = serde_json::json!({
-// //                     "error": "Internal Server Error",
-// //                     "message": "Something went wrong on our side",
-// //                     "status": res.status().as_u16(),
-// //                 });
-
-// //                 let new_res = HttpResponse::build(res.status())
-// //                     .content_type("application/json")
-// //                     .body(serde_json::to_string(&error_json).unwrap());
-
-// //                 // 返回新响应
-// //                 Ok(ServiceResponse::new(req, new_res))
-// //             } else {
-// //                 // 非错误响应直接返回
-// //                 Ok(res)
-// //             }
-// //         })
-// //     }
-// // }
-
-// // 定义日志中间件结构体
-// pub struct LogMiddleware;
-
-// // 实现 Transform trait for LogMiddleware
-// impl<S, B> Transform<S, ServiceRequest> for LogMiddleware
-// where
-//     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-//     S::Future: 'static,
-// {
-//     type Response = ServiceResponse<B>;
-//     type Error = Error;
-//     type InitError = ();
-//     type Transform = LogService<S>;
-//     type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-//     fn new_transform(&self, service: S) -> Self::Future {
-//         futures::future::ready(Ok(LogService {
-//             service,
-//             logger: Rc::new(|| ()),
-//         }))
-//     }
-// }
-
-// // 定义日志服务结构体，包装原始服务
-// pub struct LogService<S> {
-//     service: S,
-//     logger: Rc<dyn Fn()>,
-// }
-
-// // 实现 Service trait for LogService
-// impl<S, B> Service<ServiceRequest> for LogService<S>
-// where
-//     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-//     S::Future: 'static,
-// {
-//     type Response = ServiceResponse<B>;
-//     type Error = Error;
-//     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-//     forward_ready!(service);
-
-//     fn call(&self, req: ServiceRequest) -> Self::Future {
-//         let logger = Rc::clone(&self.logger);
-//         let fut = self.service.call(req);
-
-//         Box::pin(async move {
-//             // 在请求处理前记录日志
-//             // println!("Request: {:?}", req.path());
-//             // (logger)();
-//             let res = fut.await?;
-//             // 在响应生成后记录日志
-//             println!("Response: {:?}", res.status());
-//             Ok(res)
-//         })
-//     }
-// }
+    Ok(ErrorHandlerResponse::Response(new_res))
+}
