@@ -3,10 +3,11 @@ use crate::dto::user::{LoginRequest, RegisterResponse};
 use crate::error::error::AppError;
 use crate::jsonwebtoken::TokenClaims;
 use crate::models::user::{self, Entity as UserEntity};
+use crate::permission::Permission;
+use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
 use actix_web::{web, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
-use crate::permission::Permission;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use log::info;
 use sea_orm::entity::prelude::*;
@@ -14,7 +15,7 @@ use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use validator::Validate;
 
@@ -159,4 +160,80 @@ pub async fn register(
         .map_err(|e| AppError::Internal(format!("创建用户失败: {}", e)))?;
 
     Ok(HttpResponse::Created().json(created_user))
+}
+
+#[derive(Serialize)]
+struct PermissionResponse {
+    data: Vec<String>,
+    code: u16,
+}
+
+#[derive(Deserialize)]
+pub struct PermissionRequest {
+    #[serde(default = "default_permissions")]
+    permissions: String,
+}
+
+fn default_permissions() -> String {
+    "0".to_string()
+}
+// 解析权限ID并返回权限信息
+pub async fn get_permissions_by_id(
+    _db: web::Data<DatabaseConnection>,
+    query: web::Query<PermissionRequest>,
+) -> Result<HttpResponse> {
+    log::error!("permission_id: {}", query.permissions);
+    match query.permissions.parse::<u64>() {
+        Ok(permissions_bits) => {
+            let stored_permissions =
+                Permission::from_bits(permissions_bits).unwrap_or(Permission::NONE);
+            let permission_names = stored_permissions
+                .iter_names()
+                .map(|(name, _)| name.to_string())
+                .collect::<Vec<_>>();
+
+            let response = PermissionResponse {
+                data: permission_names,
+                code: 200,
+            };
+
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(_) => {
+            let response = PermissionResponse {
+                data: vec![],
+                code: 400,
+            };
+            Ok(HttpResponse::BadRequest().json(response))
+        }
+    }
+}
+
+pub async fn get_permissions() -> Result<HttpResponse, AppError> {
+    // let permission_list = PERMISSION_LIST
+    //     .iter()
+    //     .map(|(name, description)| serde_json::json!({"name": name, "description": description}))
+    //     .collect::<Vec<_>>();
+
+    // HttpResponse::Ok().json(permission_list)
+
+    let permission_list = PERMISSION_LIST
+        .iter()
+        .filter(|(name, _)| {
+            if let Some(perm) = PERMISSION_MAP.get(*name) {
+                // 判断是否是单一权限（二进制表示中只有一个1）
+                perm.bits().count_ones() == 1
+            } else {
+                false
+            }
+        })
+        .map(|(name, description)| {
+            serde_json::json!({
+                "name": name,
+                "description": description
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(permission_list))
 }
