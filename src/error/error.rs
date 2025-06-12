@@ -28,9 +28,12 @@ pub enum AppError {
     // 缺少参数
     #[error("缺少参数: {0}")]
     MissingParameter(String),
-    
+
     #[error("当前用户没有权限: {0}")]
     Forbidden(String),
+
+    #[error("服务器错误: {0}")]
+    InternalServerError(String),
 }
 
 #[derive(Serialize)]
@@ -85,7 +88,14 @@ impl ResponseError for AppError {
                 code: 403,
                 error: "当前用户没有权限".to_string(),
                 message: msg.to_string(),
-            })
+            }),
+            AppError::InternalServerError(msg) => {
+                HttpResponse::InternalServerError().json(ErrorResponse {
+                    code: 500,
+                    error: "服务器错误".to_string(),
+                    message: msg.to_string(),
+                })
+            }
         }
     }
 }
@@ -95,5 +105,13 @@ impl From<actix_web::error::JsonPayloadError> for AppError {
     fn from(err: actix_web::error::JsonPayloadError) -> Self {
         let message = parse_json_error(&err);
         Self::BadRequest(message)
+    }
+}
+
+impl From<sea_orm::DbErr> for AppError {
+    fn from(error: sea_orm::DbErr) -> Self {
+        // 你可以根据实际情况决定如何转换数据库错误
+        // 这里简单地将所有数据库错误转为内部服务器错误
+        AppError::InternalServerError(error.to_string())
     }
 }

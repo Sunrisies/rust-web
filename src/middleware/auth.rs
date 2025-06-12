@@ -1,6 +1,6 @@
-use crate::jsonwebtoken::has_permission;
+use crate::jsonwebtoken::{extract_token, has_permission};
 use crate::AppError;
-use actix_web::http::header::HeaderMap;
+
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
@@ -90,16 +90,4 @@ where
             }
         })
     }
-}
-
-async fn extract_token(headers: &HeaderMap) -> Option<String> {
-    if let Some(authorization_header) = headers.get("Authorization") {
-        if let Ok(authorization_str) = authorization_header.to_str() {
-            // 假设令牌格式为 "Bearer <token>"
-            if let Some(token) = authorization_str.strip_prefix("Bearer ") {
-                return Some(token.to_string());
-            }
-        }
-    }
-    None
 }
