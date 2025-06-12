@@ -144,7 +144,8 @@ pub async fn update_user(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
     user_data: web::Json<UpdateUserRequest>,
-    sse_notifier: web::Data<SseNotifier>, // 添加 SSE 通知器
+    // sse_notifier: web::Data<SseNotifier>, // 添加 SSE 通知器
+    notifier: web::Data<SseNotifier>,
 ) -> Result<HttpResponse, AppError> {
     // 验证UUID格式
     if uuid.is_empty() || uuid.len() != 36 {
@@ -230,7 +231,7 @@ pub async fn update_user(
         }
     });
 
-    sse_notifier.notify(&uuid, notification.to_string());
+    notifier.notify(&notification.to_string());
     Ok(HttpResponse::Ok().json(updated_user))
 }
 

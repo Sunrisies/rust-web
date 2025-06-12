@@ -59,6 +59,8 @@ where
                 "/api/posts",
                 "/api/comments",
                 "/api/auth/permissions",
+                "/sse/stream",
+                "/api/sse/stream",
             ];
             if public_paths.contains(&path.as_str()) {
                 let res = fut.await?;

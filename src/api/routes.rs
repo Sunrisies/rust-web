@@ -1,5 +1,6 @@
 use super::auth;
 use super::authenticator;
+use super::sse;
 use super::user;
 use crate::config::permission::Permission;
 use crate::utils::permission_guard::PermissionGuard;
@@ -17,6 +18,7 @@ async fn create_article() -> HttpResponse {
 pub fn config_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
+            .service(web::scope("/sse").route("/stream", web::get().to(sse::sse_stream)))
             .service(
                 web::scope("/users")
                     .route("", web::get().to(user::get_all_users))
