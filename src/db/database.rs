@@ -16,6 +16,7 @@ pub async fn create_db_pool() -> Result<DatabaseConnection, DbErr> {
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
         .sqlx_logging(false)
+        .test_before_acquire(true)
         .sqlx_logging_level(log::LevelFilter::Info);
 
     Database::connect(opt).await
