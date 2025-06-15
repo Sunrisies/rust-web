@@ -2,342 +2,418 @@
 
 ## 概述
 
-本文档详细说明了 MySQL User CRUD API 的所有端点、请求/响应格式、错误处理和使用示例。
+本文档详细说明了 Rust Web 项目提供的所有 API 端点、请求参数、响应格式和认证要求。所有 API 返回 JSON 格式的响应，并使用标准的 HTTP 状态码表示请求结果。
 
-## 基础信息
+## 基础 URL
 
-- **基础 URL**: `http://localhost:8080/api`
-- **内容类型**: `application/json`
-- **字符编码**: UTF-8
+所有 API 的基础 URL 为：`http://your-domain.com/api/v1`
 
 ## 认证
 
-目前 API 不需要认证。未来版本可能会添加认证机制。
+除了明确标记为公开的端点外，所有 API 都需要认证。认证通过 JWT Token 实现，Token 需要在请求头中通过 `Authorization` 字段提供：
 
-## 通用响应格式
+```
+Authorization: Bearer <your_jwt_token>
+```
 
-### 成功响应
+### 获取 Token
 
+```
+POST /auth/login
+```
+
+**请求体**:
 ```json
 {
-    "data": <response_data>,
-    "message": "操作成功描述"
+  "username": "your_username",
+  "password": "your_password"
 }
 ```
 
-### 错误响应
-
+**响应**:
 ```json
 {
-    "error": {
-        "code": "错误代码",
-        "message": "错误描述"
-    }
+  "code": 0,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 3600
+  }
 }
 ```
 
-## API 端点
+### 刷新 Token
 
-### 1. 获取用户列表
+```
+POST /auth/refresh
+```
 
-获取分页的用户列表。
+**请求头**:
+```
+Authorization: Bearer <your_refresh_token>
+```
 
-**请求**:
-```http
-GET /api/users?page=1&limit=10
+**响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 3600
+  }
+}
+```
+
+## 用户管理
+
+### 获取当前用户信息
+
+```
+GET /users/me
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com",
+    "role": "admin",
+    "created_at": "2023-01-01T00:00:00Z",
+    "updated_at": "2023-01-01T00:00:00Z"
+  }
+}
+```
+
+### 获取用户列表
+
+```
+GET /users
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
 ```
 
 **查询参数**:
-- `page`: 页码（默认值：1）
-- `limit`: 每页记录数（默认值：10，最大值：100）
+- `page`: 页码，默认为 1
+- `limit`: 每页记录数，默认为 10
+- `sort`: 排序字段，默认为 id
+- `order`: 排序方向，asc 或 desc，默认为 asc
 
-**成功响应** (200 OK):
+**响应**:
 ```json
 {
-    "data": [
-        {
-            "id": 1,
-            "username": "john_doe",
-            "email": "john@example.com",
-            "age": 30
-        },
-        // ... 更多用户
-    ],
-    "pagination": {
-        "total": 100,
-        "total_pages": 10,
-        "current_page": 1,
-        "limit": 10,
-        "has_next": true,
-        "has_previous": false
-    }
-}
-```
-
-### 2. 获取单个用户
-
-根据 ID 获取单个用户的详细信息。
-
-**请求**:
-```http
-GET /api/users/{id}
-```
-
-**路径参数**:
-- `id`: 用户 ID
-
-**成功响应** (200 OK):
-```json
-{
-    "data": {
+  "code": 0,
+  "message": "success",
+  "data": {
+    "total": 100,
+    "page": 1,
+    "limit": 10,
+    "users": [
+      {
         "id": 1,
         "username": "john_doe",
         "email": "john@example.com",
-        "age": 30
-    }
+        "role": "admin",
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2023-01-01T00:00:00Z"
+      },
+      // ... 更多用户
+    ]
+  }
 }
 ```
 
-**错误响应** (404 Not Found):
+### 创建用户
+
+```
+POST /users
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**请求体**:
 ```json
 {
-    "error": {
-        "code": "USER_NOT_FOUND",
-        "message": "用户不存在"
-    }
+  "username": "new_user",
+  "email": "new_user@example.com",
+  "password": "secure_password",
+  "role": "user"
 }
 ```
 
-### 3. 创建用户
-
-创建新用户。
-
-**请求**:
-```http
-POST /api/users
-Content-Type: application/json
-
-{
-    "username": "john_doe",
-    "email": "john@example.com",
-    "age": 30
-}
-```
-
-**请求体字段**:
-- `username`: 用户名（必需，字符串，2-50字符）
-- `email`: 电子邮件（必需，有效的电子邮件格式）
-- `age`: 年龄（可选，整数，0-150）
-
-**成功响应** (201 Created):
+**响应**:
 ```json
 {
-    "data": {
-        "id": 1,
-        "username": "john_doe",
-        "email": "john@example.com",
-        "age": 30
-    },
-    "message": "用户创建成功"
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 101,
+    "username": "new_user",
+    "email": "new_user@example.com",
+    "role": "user",
+    "created_at": "2023-01-02T00:00:00Z",
+    "updated_at": "2023-01-02T00:00:00Z"
+  }
 }
 ```
 
-**错误响应** (400 Bad Request):
+### 更新用户
+
+```
+PUT /users/{id}
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**请求体**:
 ```json
 {
-    "error": {
-        "code": "VALIDATION_ERROR",
-        "message": "验证错误",
-        "details": {
-            "username": "用户名已存在",
-            "email": "无效的电子邮件格式"
-        }
-    }
+  "email": "updated_email@example.com",
+  "role": "admin"
 }
 ```
 
-### 4. 更新用户
-
-更新现有用户的信息。
-
-**请求**:
-```http
-PUT /api/users/{id}
-Content-Type: application/json
-
-{
-    "username": "john_doe_updated",
-    "email": "john_new@example.com",
-    "age": 31
-}
-```
-
-**路径参数**:
-- `id`: 用户 ID
-
-**请求体字段**:
-- `username`: 用户名（可选，字符串，2-50字符）
-- `email`: 电子邮件（可选，有效的电子邮件格式）
-- `age`: 年龄（可选，整数，0-150）
-
-**成功响应** (200 OK):
+**响应**:
 ```json
 {
-    "data": {
-        "id": 1,
-        "username": "john_doe_updated",
-        "email": "john_new@example.com",
-        "age": 31
-    },
-    "message": "用户更新成功"
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 101,
+    "username": "new_user",
+    "email": "updated_email@example.com",
+    "role": "admin",
+    "created_at": "2023-01-02T00:00:00Z",
+    "updated_at": "2023-01-02T01:00:00Z"
+  }
 }
 ```
 
-**错误响应** (404 Not Found):
+### 删除用户
+
+```
+DELETE /users/{id}
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**响应**:
 ```json
 {
-    "error": {
-        "code": "USER_NOT_FOUND",
-        "message": "用户不存在"
-    }
+  "code": 0,
+  "message": "success",
+  "data": null
 }
 ```
 
-### 5. 删除用户
+## 双因素认证
 
-删除指定的用户。
+### 启用双因素认证
 
-**请求**:
-```http
-DELETE /api/users/{id}
+```
+POST /auth/2fa/enable
 ```
 
-**路径参数**:
-- `id`: 用户 ID
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
 
-**成功响应** (204 No Content)
-
-**错误响应** (404 Not Found):
+**响应**:
 ```json
 {
-    "error": {
-        "code": "USER_NOT_FOUND",
-        "message": "用户不存在"
-    }
+  "code": 0,
+  "message": "success",
+  "data": {
+    "secret": "JBSWY3DPEHPK3PXP",
+    "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+  }
 }
 ```
 
-## 错误代码
+### 验证双因素认证
 
-| 错误代码 | HTTP 状态码 | 描述 |
-|----------|------------|------|
-| VALIDATION_ERROR | 400 | 请求数据验证失败 |
-| USER_NOT_FOUND | 404 | 请求的用户不存在 |
-| DATABASE_ERROR | 500 | 数据库操作错误 |
-| INTERNAL_ERROR | 500 | 内部服务器错误 |
+```
+POST /auth/2fa/verify
+```
 
-## 数据验证规则
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
 
-### 用户名 (username)
-- 必须是 2-50 个字符
-- 只能包含字母、数字、下划线
-- 必须唯一
+**请求体**:
+```json
+{
+  "code": "123456"
+}
+```
 
-### 电子邮件 (email)
-- 必须是有效的电子邮件格式
-- 最大长度 255 字符
-- 必须唯一
+**响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "enabled": true
+  }
+}
+```
 
-### 年龄 (age)
-- 必须是 0-150 之间的整数
-- 可选字段
+### 禁用双因素认证
+
+```
+POST /auth/2fa/disable
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**请求体**:
+```json
+{
+  "code": "123456"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "enabled": false
+  }
+}
+```
+
+## 实时通知
+
+### 建立 SSE 连接
+
+```
+GET /sse
+```
+
+**请求头**:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**响应**:
+Server-Sent Events 流，事件格式如下：
+
+```
+event: message
+data: {"id": "msg-123", "type": "notification", "content": "New message received"}
+
+event: alert
+data: {"id": "alert-456", "type": "system", "content": "System maintenance scheduled"}
+```
+
+## 错误响应
+
+所有 API 在发生错误时返回统一的错误格式：
+
+```json
+{
+  "code": 1001,
+  "message": "Invalid credentials",
+  "data": null
+}
+```
+
+### 常见错误码
+
+| 错误码 | 描述 |
+|--------|------|
+| 1001   | 认证失败 |
+| 1002   | 权限不足 |
+| 1003   | 资源不存在 |
+| 1004   | 参数验证失败 |
+| 1005   | 服务器内部错误 |
+| 1006   | 请求频率超限 |
 
 ## 速率限制
 
-目前 API 没有实现速率限制。未来版本可能会添加以下限制：
-- 每个 IP 地址每分钟最多 60 个请求
-- 超过限制时返回 429 Too Many Requests 状态码
+API 实施了速率限制以防止滥用。限制信息通过以下响应头返回：
 
-## 分页
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+X-RateLimit-Reset: 1609459200
+```
 
-所有返回列表的端点都支持分页：
+超过限制时，服务器返回 429 Too Many Requests 状态码。
 
-- `page`: 页码，从 1 开始
-- `limit`: 每页记录数，默认 10，最大 100
+## API 版本控制
 
-分页响应包含以下元数据：
-- `total`: 总记录数
-- `total_pages`: 总页数
-- `current_page`: 当前页码
-- `limit`: 每页记录数
-- `has_next`: 是否有下一页
-- `has_previous`: 是否有上一页
+API 版本通过 URL 路径控制（如 `/api/v1/users`）。当 API 发生不兼容变更时，会增加版本号。
 
-## 使用示例
+## 请求示例
 
-### cURL 示例
+### cURL
 
-1. 获取用户列表：
 ```bash
-curl -X GET "http://localhost:8080/api/users?page=1&limit=10"
+# 登录
+curl -X POST http://your-domain.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "john_doe", "password": "secure_password"}'
+
+# 获取用户信息
+curl -X GET http://your-domain.com/api/v1/users/me \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
-2. 创建新用户：
-```bash
-curl -X POST "http://localhost:8080/api/users" \
-     -H "Content-Type: application/json" \
-     -d '{
-         "username": "john_doe",
-         "email": "john@example.com",
-         "age": 30
-     }'
+### JavaScript
+
+```javascript
+// 登录
+fetch('http://your-domain.com/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    username: 'john_doe',
+    password: 'secure_password'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+
+// 获取用户信息
+fetch('http://your-domain.com/api/v1/users/me', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
 ```
-
-3. 更新用户：
-```bash
-curl -X PUT "http://localhost:8080/api/users/1" \
-     -H "Content-Type: application/json" \
-     -d '{
-         "age": 31
-     }'
-```
-
-4. 删除用户：
-```bash
-curl -X DELETE "http://localhost:8080/api/users/1"
-```
-
-### Python 示例
-
-```python
-import requests
-
-# 获取用户列表
-response = requests.get('http://localhost:8080/api/users', params={'page': 1, 'limit': 10})
-users = response.json()
-
-# 创建用户
-new_user = {
-    'username': 'john_doe',
-    'email': 'john@example.com',
-    'age': 30
-}
-response = requests.post('http://localhost:8080/api/users', json=new_user)
-created_user = response.json()
-
-# 更新用户
-updates = {'age': 31}
-response = requests.put(f'http://localhost:8080/api/users/1', json=updates)
-updated_user = response.json()
-
-# 删除用户
-response = requests.delete('http://localhost:8080/api/users/1')
-```
-
-## 最佳实践
-
-1. 使用 HTTPS 进行安全通信
-2. 实现适当的错误处理
-3. 遵循 API 的分页建议
-4. 缓存不经常变化的数据
-5. 使用合适的 HTTP 方法和状态码

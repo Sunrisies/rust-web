@@ -1,406 +1,558 @@
 # 开发指南
 
-本文档提供了项目的开发指南，包括环境设置、编码规范、测试指南和常见问题解决方案。
+本文档提供了 Rust Web 项目的开发流程、代码规范和贡献指南。
 
 ## 目录
 
-1. [开发环境设置](#开发环境设置)
-2. [项目结构](#项目结构)
-3. [编码规范](#编码规范)
-4. [测试指南](#测试指南)
-5. [数据库管理](#数据库管理)
-6. [错误处理](#错误处理)
-7. [日志记录](#日志记录)
-8. [性能优化](#性能优化)
-9. [常见问题](#常见问题)
+- [开发环境设置](#开发环境设置)
+- [项目结构](#项目结构)
+- [编码规范](#编码规范)
+- [开发工作流](#开发工作流)
+- [测试指南](#测试指南)
+- [文档编写](#文档编写)
+- [版本控制](#版本控制)
+- [贡献指南](#贡献指南)
+- [常见问题](#常见问题)
 
 ## 开发环境设置
 
-### 必需组件
+### 安装必要工具
 
-1. **Rust 工具链**
-```bash
-# 安装 Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 更新到最新版本
-rustup update
-
-# 安装 nightly 工具链（可选）
-rustup install nightly
-```
+1. **Rust 和 Cargo**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source $HOME/.cargo/env
+   rustup default stable
+   ```
 
 2. **MySQL**
-```bash
-# macOS (使用 Homebrew)
-brew install mysql
-
-# Ubuntu
-sudo apt-get install mysql-server
-
-# 启动 MySQL 服务
-sudo service mysql start  # Linux
-brew services start mysql  # macOS
-```
+   - Ubuntu/Debian: `sudo apt install mysql-server`
+   - macOS: `brew install mysql`
+   - Windows: 从 [MySQL 官网](https://dev.mysql.com/downloads/installer/) 下载安装程序
 
 3. **开发工具**
-- VS Code 或其他 IDE
-- Rust 插件（rust-analyzer）
-- MySQL 客户端工具
+   - 推荐 IDE: VS Code 或 IntelliJ IDEA 配合 Rust 插件
+   - 安装 VS Code 插件: rust-analyzer, crates, Better TOML
 
-### 项目设置
+### 配置开发环境
 
 1. **克隆仓库**
-```bash
-git clone <repository-url>
-cd mysql_user_crud
-```
+   ```bash
+   git clone [项目地址]
+   cd rust-web
+   ```
 
-2. **配置环境变量**
-```bash
-cp .env.test .env
-```
+2. **安装开发依赖**
+   ```bash
+   # 安装 cargo-watch 用于自动重载
+   cargo install cargo-watch
+   
+   # 安装 sqlx-cli 用于数据库迁移
+   cargo install sqlx-cli
+   
+   # 安装 cargo-audit 用于安全审计
+   cargo install cargo-audit
+   ```
 
-编辑 `.env` 文件：
-```env
-DATABASE_URL=mysql://username:password@localhost:3306/dbname
-RUST_LOG=debug
-SERVER_HOST=127.0.0.1
-SERVER_PORT=8080
-```
+3. **配置环境变量**
+   ```bash
+   cp .env.example .env.development
+   ```
+   
+   编辑 `.env.development` 文件，设置开发环境变量：
+   ```
+   DATABASE_URL=mysql://rust_web_user:your_password@localhost/rust_web_dev
+   JWT_SECRET=dev_secret
+   JWT_EXPIRATION=3600
+   SERVER_HOST=127.0.0.1
+   SERVER_PORT=18080
+   LOG_LEVEL=debug
+   ```
 
-3. **安装开发依赖**
-```bash
-# 安装 cargo-watch（用于开发时自动重新编译）
-cargo install cargo-watch
-
-# 安装 diesel_cli（用于数据库迁移）
-cargo install diesel_cli --no-default-features --features mysql
-```
+4. **初始化开发数据库**
+   ```bash
+   # 创建开发数据库
+   mysql -u root -p -e "CREATE DATABASE rust_web_dev; CREATE USER 'rust_web_user'@'localhost' IDENTIFIED BY 'your_password'; GRANT ALL PRIVILEGES ON rust_web_dev.* TO 'rust_web_user'@'localhost'; FLUSH PRIVILEGES;"
+   
+   # 导入初始数据
+   mysql -u rust_web_user -p rust_web_dev < sql/user.sql
+   ```
 
 ## 项目结构
 
 ```
-src/
-├── api/                    # API 相关代码
-│   ├── handlers.rs         # 请求处理器
-│   ├── routes.rs           # 路由配置
-│   └── mod.rs             # 模块声明
-├── db/                     # 数据库相关代码
-│   ├── database.rs         # 数据库操作
-│   └── mod.rs             # 模块声明
-├── models/                 # 数据模型
-│   ├── user.rs            # 用户模型
-│   └── mod.rs             # 模块声明
-├── lib.rs                  # 库入口
-└── main.rs                # 应用入口
+rust-web/
+├── .github/            # GitHub 配置文件
+├── docs/               # 项目文档
+├── sql/                # SQL 脚本
+├── src/                # 源代码
+│   ├── api/            # API 路由和处理器
+│   │   ├── auth.rs     # 认证相关 API
+│   │   ├── user.rs     # 用户相关 API
+│   │   └── sse.rs      # 服务器发送事件 API
+│   ├── config/         # 配置相关代码
+│   │   ├── log.rs      # 日志配置
+│   │   └── permission.rs # 权限配置
+│   ├── db/             # 数据库连接和操作
+│   ├── dto/            # 数据传输对象
+│   ├── error/          # 错误处理
+│   ├── middleware/     # 中间件
+│   │   ├── auth.rs     # 认证中间件
+│   │   └── logger.rs   # 日志中间件
+│   ├── models/         # 数据模型
+│   ├── types/          # 类型定义
+│   ├── utils/          # 工具函数
+│   │   ├── jsonwebtoken.rs # JWT 工具
+│   │   └── sse.rs      # SSE 工具
+│   ├── lib.rs          # 库入口
+│   └── main.rs         # 应用入口
+├── tests/              # 集成测试
+├── .env.example        # 环境变量示例
+├── .gitignore          # Git 忽略文件
+├── Cargo.toml          # 项目依赖
+├── Cargo.lock          # 依赖锁定文件
+├── Dockerfile          # Docker 配置
+├── docker-compose.yml  # Docker Compose 配置
+└── README.md           # 项目说明
 ```
 
 ## 编码规范
 
-### 命名约定
+### Rust 代码风格
 
-1. **变量和函数**
-- 使用蛇形命名法（snake_case）
-- 描述性但简洁
-```rust
-let user_count = 0;
-fn get_user_by_id(id: i32) -> Result<User, Error> {
-    // ...
-}
+1. **命名约定**
+   - 使用蛇形命名法（snake_case）命名变量和函数
+   - 使用大驼峰命名法（PascalCase）命名类型和特性
+   - 使用全大写蛇形命名法（SCREAMING_SNAKE_CASE）命名常量
+   - 模块名使用蛇形命名法
+
+2. **代码格式化**
+   - 使用 `rustfmt` 格式化代码：`cargo fmt`
+   - 提交前运行 `cargo fmt --check` 确保代码格式正确
+
+3. **代码质量**
+   - 使用 `clippy` 检查代码质量：`cargo clippy`
+   - 修复所有 clippy 警告或使用 `#[allow(...)]` 注解说明原因
+
+### 注释规范
+
+1. **文档注释**
+   - 为公共 API 提供文档注释（`///` 或 `/** ... */`）
+   - 包含参数、返回值和示例说明
+   - 示例：
+     ```rust
+     /// 验证用户凭证并返回 JWT token
+     ///
+     /// # Arguments
+     ///
+     /// * `credentials` - 包含用户名和密码的凭证
+     ///
+     /// # Returns
+     ///
+     /// 成功时返回 JWT token，失败时返回认证错误
+     ///
+     /// # Examples
+     ///
+     /// ```
+     /// let credentials = Credentials { username: "user", password: "pass" };
+     /// let token = authenticate(credentials).await?;
+     /// ```
+     pub async fn authenticate(credentials: Credentials) -> Result<String, AuthError> {
+         // 实现...
+     }
+     ```
+
+2. **代码注释**
+   - 使用 `//` 注释解释复杂逻辑
+   - 避免注释明显的代码
+   - 保持注释与代码同步更新
+
+### 错误处理
+
+1. **使用 `Result` 类型**
+   - 函数应返回 `Result<T, E>` 而不是 panic
+   - 使用 `?` 运算符传播错误
+
+2. **自定义错误类型**
+   - 使用 `thiserror` 创建自定义错误类型
+   - 实现错误转换和显示特性
+   - 示例：
+     ```rust
+     use thiserror::Error;
+     
+     #[derive(Error, Debug)]
+     pub enum AppError {
+         #[error("Authentication error: {0}")]
+         AuthError(String),
+         
+         #[error("Database error: {0}")]
+         DbError(#[from] sqlx::Error),
+         
+         #[error("Validation error: {0}")]
+         ValidationError(String),
+     }
+     ```
+
+## 开发工作流
+
+### 本地开发
+
+1. **启动开发服务器**
+   ```bash
+   # 使用开发环境变量
+   export $(cat .env.development | xargs)
+   
+   # 启动带有自动重载的服务器
+   cargo watch -x run
+   ```
+
+2. **实时编译检查**
+   ```bash
+   # 在另一个终端窗口运行
+   cargo watch -c -x check
+   ```
+
+### 分支策略
+
+1. **主分支**
+   - `main`: 稳定版本，只接受经过测试的合并请求
+   - `develop`: 开发分支，集成已完成的功能
+
+2. **功能分支**
+   - 从 `develop` 分支创建功能分支
+   - 命名格式：`feature/feature-name`
+   - 完成后合并回 `develop` 分支
+
+3. **修复分支**
+   - 从 `main` 分支创建修复分支
+   - 命名格式：`hotfix/issue-description`
+   - 完成后同时合并到 `main` 和 `develop` 分支
+
+### 提交规范
+
+使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
 ```
 
-2. **类型和特征**
-- 使用大驼峰命名法（PascalCase）
-```rust
-struct User {
-    // ...
-}
+类型（type）:
+- `feat`: 新功能
+- `fix`: 错误修复
+- `docs`: 文档更改
+- `style`: 不影响代码含义的更改（空格、格式等）
+- `refactor`: 既不修复错误也不添加功能的代码更改
+- `perf`: 提高性能的代码更改
+- `test`: 添加或修正测试
+- `build`: 影响构建系统或外部依赖的更改
+- `ci`: 更改 CI 配置文件和脚本
 
-trait DatabaseConnection {
-    // ...
-}
+示例：
 ```
+feat(auth): 添加双因素认证支持
 
-3. **常量**
-- 使用全大写蛇形命名法
-```rust
-const MAX_CONNECTIONS: u32 = 100;
-```
+- 添加 Google Authenticator 集成
+- 更新用户模型以支持 2FA
+- 添加 2FA 设置和验证 API
 
-### 代码格式化
-
-使用 `rustfmt` 格式化代码：
-```bash
-# 格式化整个项目
-cargo fmt
-
-# 检查格式化问题但不修改
-cargo fmt -- --check
-```
-
-### 代码检查
-
-使用 `clippy` 进行代码检查：
-```bash
-cargo clippy
-```
-
-### 文档注释
-
-- 为公共 API 添加文档注释
-- 包含示例代码（如果适用）
-
-```rust
-/// 根据 ID 获取用户
-///
-/// # Arguments
-///
-/// * `id` - 用户 ID
-///
-/// # Returns
-///
-/// 返回包含用户信息的 Result
-///
-/// # Examples
-///
-/// ```
-/// let user = get_user_by_id(1)?;
-/// println!("User: {}", user.username);
-/// ```
-pub fn get_user_by_id(id: i32) -> Result<User, Error> {
-    // ...
-}
+Closes #123
 ```
 
 ## 测试指南
 
-### 单元测试
+### 测试类型
 
-1. **测试结构**
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+1. **单元测试**
+   - 测试单个函数或模块
+   - 放在与被测代码相同的文件中
+   - 使用 `#[cfg(test)]` 标记测试模块
 
-    #[test]
-    fn test_user_creation() {
-        // ...
-    }
-}
-```
+2. **集成测试**
+   - 测试多个组件的交互
+   - 放在 `tests/` 目录下
+   - 每个测试文件是一个独立的 crate
 
-2. **运行测试**
+3. **API 测试**
+   - 测试 HTTP API 端点
+   - 使用 `actix-rt` 和 `reqwest` 发送请求
+
+### 编写测试
+
+1. **单元测试示例**
+   ```rust
+   #[cfg(test)]
+   mod tests {
+       use super::*;
+       
+       #[test]
+       fn test_validate_password() {
+           assert!(validate_password("StrongP@ss123"));
+           assert!(!validate_password("weak"));
+       }
+   }
+   ```
+
+2. **集成测试示例**
+   ```rust
+   // tests/api_auth.rs
+   use rust_web::{create_app, config::Config};
+   use actix_web::{test, App};
+   
+   #[actix_rt::test]
+   async fn test_login_endpoint() {
+       let config = Config::from_env().unwrap();
+       let app = test::init_service(
+           App::new()
+               .configure(|cfg| create_app(cfg, &config))
+       ).await;
+       
+       let req = test::TestRequest::post()
+           .uri("/api/v1/auth/login")
+           .set_json(&json!({
+               "username": "test_user",
+               "password": "test_password"
+           }))
+           .to_request();
+           
+       let resp = test::call_service(&app, req).await;
+       assert_eq!(resp.status(), 200);
+       
+       let body: Value = test::read_body_json(resp).await;
+       assert_eq!(body["code"], 0);
+       assert!(body["data"]["token"].is_string());
+   }
+   ```
+
+### 运行测试
+
 ```bash
 # 运行所有测试
 cargo test
 
 # 运行特定测试
-cargo test test_user_creation
+cargo test test_login_endpoint
+
+# 运行特定模块的测试
+cargo test --package rust-web --lib -- api::auth::tests
 
 # 显示测试输出
 cargo test -- --nocapture
 ```
 
-### 集成测试
+### 测试覆盖率
 
-1. **设置测试数据库**
+使用 `grcov` 生成测试覆盖率报告：
+
 ```bash
-# 创建测试数据库
-mysql -u root -p -e "CREATE DATABASE test_db;"
+# 安装 grcov
+cargo install grcov
 
-# 运行迁移
-DATABASE_URL=mysql://root:password@localhost/test_db diesel migration run
+# 安装 llvm-tools-preview
+rustup component add llvm-tools-preview
+
+# 运行带覆盖率的测试
+RUSTFLAGS="-Zinstrument-coverage" \
+LLVM_PROFILE_FILE="rust-web-%p-%m.profraw" \
+cargo test
+
+# 生成覆盖率报告
+grcov . --binary-path ./target/debug/ -s . -t html --branch --ignore-not-existing -o ./coverage/
 ```
 
-2. **编写集成测试**
-```rust
-// tests/api_tests.rs
-use mysql_user_crud;
+## 文档编写
 
-#[actix_rt::test]
-async fn test_create_user() {
-    // ...
-}
-```
+### 代码文档
 
-### 性能测试
+1. **生成文档**
+   ```bash
+   cargo doc --no-deps --open
+   ```
 
-使用 `criterion` 进行基准测试：
+2. **文档测试**
+   - 文档注释中的代码示例会被自动测试
+   - 确保示例代码是正确的并且能够运行
 
-```rust
-use criterion::{criterion_group, criterion_main, Criterion};
+### 项目文档
 
-fn benchmark_user_creation(c: &mut Criterion) {
-    c.bench_function("create_user", |b| {
-        b.iter(|| {
-            // 测试代码
-        })
-    });
-}
+1. **README.md**
+   - 项目概述
+   - 快速开始指南
+   - 基本用法示例
 
-criterion_group!(benches, benchmark_user_creation);
-criterion_main!(benches);
-```
+2. **docs/ 目录**
+   - 详细的用户指南
+   - API 文档
+   - 架构说明
+   - 部署指南
+   - 贡献指南
 
-## 数据库管理
+## 版本控制
 
-### 迁移
+遵循 [语义化版本控制](https://semver.org/) 规范：
 
-1. **创建新迁移**
-```bash
-diesel migration generate create_users
-```
+- **主版本号**：当你做了不兼容的 API 修改
+- **次版本号**：当你做了向下兼容的功能性新增
+- **修订号**：当你做了向下兼容的问题修正
 
-2. **运行迁移**
-```bash
-diesel migration run
-```
+### 版本发布流程
 
-3. **回滚迁移**
-```bash
-diesel migration revert
-```
-
-### 连接池管理
-
-```rust
-use mysql::Pool;
-
-pub fn create_pool(database_url: &str) -> Pool {
-    Pool::new(database_url).expect("Failed to create pool")
-}
-```
-
-## 错误处理
-
-### 自定义错误类型
-
-```rust
-#[derive(Debug)]
-pub enum AppError {
-    DatabaseError(mysql::Error),
-    ValidationError(String),
-    NotFound(String),
-}
-
-impl std::error::Error for AppError {}
-```
-
-### 错误转换
-
-```rust
-impl From<mysql::Error> for AppError {
-    fn from(err: mysql::Error) -> Self {
-        AppError::DatabaseError(err)
-    }
-}
-```
-
-## 日志记录
-
-### 配置日志
-
-```rust
-use env_logger::{Builder, Env};
-
-fn setup_logger() {
-    Builder::from_env(Env::default().default_filter_or("info"))
-        .format_timestamp_millis()
-        .init();
-}
-```
-
-### 使用日志
-
-```rust
-log::info!("Server starting on port {}", port);
-log::error!("Database error: {}", err);
-log::debug!("Processing request: {:?}", req);
-```
-
-## 性能优化
-
-### 编译优化
-
-在 `Cargo.toml` 中：
-```toml
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-```
-
-### 数据库优化
-
-1. **索引优化**
-```sql
-CREATE INDEX idx_username ON users(username);
-```
-
-2. **连接池配置**
-```rust
-let pool = Pool::new(database_url)
-    .with_max_connections(100)
-    .with_min_connections(5);
-```
-
-## 常见问题
-
-### 1. 数据库连接问题
-
-**问题**: 无法连接到数据库
-**解决方案**:
-- 检查数据库 URL 格式
-- 确保 MySQL 服务正在运行
-- 验证用户权限
-
-### 2. 编译错误
-
-**问题**: 依赖项版本冲突
-**解决方案**:
-- 更新 `Cargo.lock`
-- 检查依赖项版本兼容性
-- 清理并重新构建项目
-
-### 3. 性能问题
-
-**问题**: API 响应缓慢
-**解决方案**:
-- 检查数据库查询性能
-- 优化数据库索引
-- 调整连接池配置
-- 使用异步操作
+1. 更新 `Cargo.toml` 中的版本号
+2. 更新 `CHANGELOG.md`
+3. 创建版本标签：`git tag v1.0.0`
+4. 推送标签：`git push origin v1.0.0`
 
 ## 贡献指南
 
-1. **分支命名**
-- 功能分支: `feature/description`
-- 修复分支: `fix/description`
-- 文档分支: `docs/description`
+### 提交贡献
 
-2. **提交消息格式**
+1. **Fork 仓库**
+   - 在 GitHub 上 fork 项目仓库
+
+2. **克隆 fork 的仓库**
+   ```bash
+   git clone https://github.com/your-username/rust-web.git
+   cd rust-web
+   ```
+
+3. **创建功能分支**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+4. **开发功能**
+   - 编写代码
+   - 添加测试
+   - 更新文档
+
+5. **提交更改**
+   ```bash
+   git add .
+   git commit -m "feat: 添加新功能"
+   ```
+
+6. **推送到 fork 的仓库**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+7. **创建合并请求**
+   - 在 GitHub 上创建从你的功能分支到主仓库 develop 分支的合并请求
+   - 填写详细的描述，包括实现的功能和解决的问题
+
+### 代码审查
+
+1. **审查标准**
+   - 代码质量：遵循编码规范
+   - 测试覆盖：新功能必须有测试
+   - 文档：更新相关文档
+   - 性能：不引入性能问题
+
+2. **审查流程**
+   - 至少一名维护者必须批准更改
+   - CI 测试必须通过
+   - 所有讨论问题必须解决
+
+### 报告问题
+
+1. **提交 Issue**
+   - 使用 Issue 模板
+   - 提供详细的问题描述
+   - 包括复现步骤
+   - 附上相关日志和截图
+
+2. **Issue 分类**
+   - Bug：软件缺陷
+   - Feature：功能请求
+   - Documentation：文档改进
+   - Question：使用问题
+
+## 常见问题
+
+### 开发问题
+
+1. **数据库连接失败**
+   - 检查 `.env` 文件中的数据库配置
+   - 确保 MySQL 服务正在运行
+   - 验证数据库用户权限
+
+2. **依赖问题**
+   - 运行 `cargo update` 更新依赖
+   - 检查 `Cargo.lock` 是否提交到版本控制
+   - 使用 `cargo clean` 清理构建缓存
+
+3. **编译错误**
+   - 运行 `cargo check` 获取详细错误信息
+   - 更新 Rust 工具链：`rustup update`
+   - 检查是否使用了不稳定特性
+
+### 调试技巧
+
+1. **日志调试**
+   - 设置环境变量 `RUST_LOG=debug`
+   - 使用 `log::debug!()` 输出调试信息
+   - 查看日志输出
+
+2. **使用调试器**
+   - 安装 `rust-gdb` 或 `rust-lldb`
+   - 添加断点：`#[breakpoint]`
+   - 运行调试：`rust-gdb target/debug/rust-web`
+
+3. **性能分析**
+   - 使用 `cargo flamegraph` 生成火焰图
+   - 使用 `criterion` 进行基准测试
+   - 分析内存使用：`valgrind`
+
+### 常见错误解决
+
+1. **权限错误**
+   - 检查 JWT 令牌是否有效
+   - 验证用户角色和权限
+   - 查看认证中间件日志
+
+2. **数据库查询错误**
+   - 检查 SQL 语句语法
+   - 验证表结构和字段名
+   - 确保数据类型匹配
+
+3. **API 响应错误**
+   - 检查请求格式和参数
+   - 验证内容类型头
+   - 查看服务器错误日志
+
+## 附录
+
+### 有用的命令
+
+```bash
+# 检查代码格式
+cargo fmt --check
+
+# 运行 clippy 检查
+cargo clippy -- -D warnings
+
+# 运行安全审计
+cargo audit
+
+# 生成依赖图
+cargo install cargo-deps
+cargo deps --all-deps | dot -Tpng > deps.png
+
+# 分析二进制大小
+cargo bloat --release
+
+# 检查未使用的依赖
+cargo install cargo-udeps
+cargo +nightly udeps
 ```
-<type>(<scope>): <subject>
 
-<body>
+### 推荐资源
 
-<footer>
-```
-
-示例：
-```
-feat(user): add email validation
-
-- Add email format validation
-- Add unique email constraint
-
-Closes #123
-```
-
-3. **代码审查清单**
-- 代码是否遵循项目规范
-- 是否包含适当的测试
-- 文档是否更新
-- 性能影响是否可接受
+- [Rust 官方文档](https://doc.rust-lang.org/book/)
+- [Rust API 指南](https://rust-lang.github.io/api-guidelines/)
+- [Actix Web 文档](https://actix.rs/docs/)
+- [SQLx 文档](https://github.com/launchbadge/sqlx)
+- [Rust 设计模式](https://rust-unofficial.github.io/patterns/)

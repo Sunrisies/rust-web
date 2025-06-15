@@ -1,200 +1,215 @@
 # 部署指南
 
-本文档提供了将 MySQL User CRUD API 部署到生产环境的详细说明，包括环境配置、部署选项、监控和维护指南。
+本文档提供了在不同环境中部署 Rust Web 项目的详细说明。
 
 ## 目录
 
-1. [部署准备](#部署准备)
-2. [Docker 部署](#docker-部署)
-3. [手动部署](#手动部署)
-4. [环境配置](#环境配置)
-5. [数据库配置](#数据库配置)
-6. [安全配置](#安全配置)
-7. [监控设置](#监控设置)
-8. [日志管理](#日志管理)
-9. [备份策略](#备份策略)
-10. [维护计划](#维护计划)
-11. [故障排除](#故障排除)
+- [环境要求](#环境要求)
+- [本地部署](#本地部署)
+- [Docker 部署](#docker-部署)
+- [生产环境部署](#生产环境部署)
+- [CI/CD 集成](#cicd-集成)
+- [监控与日志](#监控与日志)
+- [备份与恢复](#备份与恢复)
+- [故障排除](#故障排除)
 
-## 部署准备
+## 环境要求
 
-### 系统要求
+### 基本要求
 
-- CPU: 2+ 核心
-- 内存: 4GB+ RAM
-- 磁盘: 20GB+ 可用空间
-- 操作系统: Ubuntu 20.04+ / CentOS 8+ / macOS 12+
+- Rust 1.70.0 或更高版本
+- MySQL 8.0 或更高版本
+- 操作系统: Linux, macOS, 或 Windows
+- 至少 1GB RAM
+- 至少 1GB 磁盘空间
 
-### 依赖检查清单
+### 推荐配置
 
-- [ ] Rust 1.70+ 已安装
-- [ ] MySQL 8.0+ 已安装
-- [ ] Docker 20.10+ (如果使用 Docker 部署)
-- [ ] SSL 证书 (用于 HTTPS)
-- [ ] 防火墙配置
-- [ ] 系统监控工具
+- 2 核 CPU
+- 4GB RAM
+- 10GB SSD 存储
+- Ubuntu 22.04 LTS 或 Debian 11
+
+## 本地部署
+
+### 1. 安装 Rust
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+rustup default stable
+```
+
+### 2. 安装 MySQL
+
+#### Ubuntu/Debian
+```bash
+sudo apt update
+sudo apt install mysql-server
+sudo systemctl start mysql
+sudo systemctl enable mysql
+```
+
+#### macOS
+```bash
+brew install mysql
+brew services start mysql
+```
+
+#### Windows
+从 [MySQL 官网](https://dev.mysql.com/downloads/installer/) 下载并安装 MySQL Installer。
+
+### 3. 配置数据库
+
+```bash
+# 登录 MySQL
+mysql -u root -p
+
+# 创建数据库和用户
+CREATE DATABASE rust_web;
+CREATE USER 'rust_web_user'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON rust_web.* TO 'rust_web_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+# 导入初始数据
+mysql -u rust_web_user -p rust_web < sql/user.sql
+```
+
+### 4. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env` 文件，设置以下变量：
+
+```
+DATABASE_URL=mysql://rust_web_user:your_password@localhost/rust_web
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRATION=3600
+SERVER_HOST=0.0.0.0
+SERVER_PORT=18080
+LOG_LEVEL=info
+```
+
+### 5. 构建和运行
+
+```bash
+# 开发模式
+cargo run
+
+# 生产模式
+cargo build --release
+./target/release/rust-web
+```
 
 ## Docker 部署
 
-### 1. 构建 Docker 镜像
+### 1. 安装 Docker 和 Docker Compose
 
+#### Ubuntu/Debian
 ```bash
-# 从项目根目录构建镜像
-docker build -t mysql_user_crud:latest .
+sudo apt update
+sudo apt install docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
 ```
 
-### 2. 运行容器
-
+#### macOS
 ```bash
-# 创建 Docker 网络
-docker network create user-api-network
-
-# 运行 MySQL 容器
-docker run -d \
-  --name mysql \
-  --network user-api-network \
-  -e MYSQL_ROOT_PASSWORD=your_root_password \
-  -e MYSQL_DATABASE=user_db \
-  -e MYSQL_USER=api_user \
-  -e MYSQL_PASSWORD=api_password \
-  -v mysql_data:/var/lib/mysql \
-  mysql:8.0
-
-# 运行 API 容器
-docker run -d \
-  --name user-api \
-  --network user-api-network \
-  -p 8080:8080 \
-  -e DATABASE_URL=mysql://api_user:api_password@mysql:3306/user_db \
-  -e RUST_LOG=info \
-  mysql_user_crud:latest
+brew install docker docker-compose
 ```
 
-### 3. Docker Compose 部署
+#### Windows
+从 [Docker 官网](https://www.docker.com/products/docker-desktop) 下载并安装 Docker Desktop。
 
-创建 `docker-compose.yml`:
+### 2. 配置 Docker 环境
+
+创建 `docker-compose.yml` 文件：
 
 ```yaml
-version: '3.8'
+version: '3'
 
 services:
-  api:
+  app:
     build: .
     ports:
-      - "8080:8080"
+      - "18080:18080"
     environment:
-      - DATABASE_URL=mysql://api_user:api_password@mysql:3306/user_db
-      - RUST_LOG=info
+      - DATABASE_URL=mysql://rust_web_user:your_password@db/rust_web
+      - JWT_SECRET=your_jwt_secret
+      - JWT_EXPIRATION=3600
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=18080
+      - LOG_LEVEL=info
     depends_on:
-      - mysql
-    restart: unless-stopped
-    networks:
-      - user-api-network
+      - db
+    restart: always
 
-  mysql:
+  db:
     image: mysql:8.0
+    ports:
+      - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=your_root_password
-      - MYSQL_DATABASE=user_db
-      - MYSQL_USER=api_user
-      - MYSQL_PASSWORD=api_password
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=rust_web
+      - MYSQL_USER=rust_web_user
+      - MYSQL_PASSWORD=your_password
     volumes:
       - mysql_data:/var/lib/mysql
-    networks:
-      - user-api-network
+      - ./sql/user.sql:/docker-entrypoint-initdb.d/user.sql
+    restart: always
 
 volumes:
   mysql_data:
-
-networks:
-  user-api-network:
 ```
 
-运行:
+### 3. 构建和运行 Docker 容器
+
 ```bash
 docker-compose up -d
 ```
 
-## 手动部署
-
-### 1. 编译项目
+### 4. 查看日志
 
 ```bash
-# 生产环境编译
-cargo build --release
-
-# 复制二进制文件到部署目录
-sudo cp target/release/mysql_user_crud /usr/local/bin/
+docker-compose logs -f app
 ```
 
-### 2. 创建系统服务
+## 生产环境部署
 
-创建 `/etc/systemd/system/user-api.service`:
+### 1. 服务器准备
 
-```ini
-[Unit]
-Description=MySQL User CRUD API
-After=network.target mysql.service
+- 配置防火墙，只开放必要端口（如 80, 443, 22）
+- 设置 SSH 密钥认证
+- 更新系统包
+- 安装必要工具（如 fail2ban, ufw）
 
-[Service]
-Type=simple
-User=api_user
-Environment=DATABASE_URL=mysql://api_user:api_password@localhost:3306/user_db
-Environment=RUST_LOG=info
-Environment=SERVER_HOST=0.0.0.0
-Environment=SERVER_PORT=8080
-ExecStart=/usr/local/bin/mysql_user_crud
-Restart=always
-RestartSec=3
+### 2. 使用 Nginx 作为反向代理
 
-[Install]
-WantedBy=multi-user.target
-```
+安装 Nginx：
 
-启动服务:
 ```bash
-sudo systemctl enable user-api
-sudo systemctl start user-api
+sudo apt update
+sudo apt install nginx
 ```
 
-## 环境配置
+配置 Nginx：
 
-### 生产环境变量
-
-```env
-# 数据库配置
-DATABASE_URL=mysql://user:password@host:3306/dbname
-DATABASE_POOL_SIZE=10
-
-# 服务器配置
-SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
-RUST_LOG=info
-
-# 安全配置
-ENABLE_HTTPS=true
-SSL_CERT_PATH=/path/to/cert.pem
-SSL_KEY_PATH=/path/to/key.pem
+```bash
+sudo nano /etc/nginx/sites-available/rust-web
 ```
 
-### Nginx 反向代理配置
+添加以下配置：
 
 ```nginx
 server {
     listen 80;
-    server_name api.example.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name api.example.com;
-
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
+    server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:18080;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -204,230 +219,264 @@ server {
 }
 ```
 
-## 数据库配置
+启用站点并重启 Nginx：
 
-### MySQL 优化设置
-
-编辑 `my.cnf`:
-
-```ini
-[mysqld]
-# 连接设置
-max_connections = 1000
-max_connect_errors = 10000
-
-# 缓冲池设置
-innodb_buffer_pool_size = 1G
-innodb_buffer_pool_instances = 4
-
-# 日志设置
-slow_query_log = 1
-slow_query_log_file = /var/log/mysql/slow.log
-long_query_time = 2
+```bash
+sudo ln -s /etc/nginx/sites-available/rust-web /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
 ```
 
-### 数据库备份配置
+### 3. 配置 SSL（使用 Let's Encrypt）
 
-创建备份脚本 `backup.sh`:
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+### 4. 创建系统服务
+
+```bash
+sudo nano /etc/systemd/system/rust-web.service
+```
+
+添加以下内容：
+
+```ini
+[Unit]
+Description=Rust Web Service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/rust-web
+Environment="DATABASE_URL=mysql://rust_web_user:your_password@localhost/rust_web"
+Environment="JWT_SECRET=your_jwt_secret"
+Environment="JWT_EXPIRATION=3600"
+Environment="SERVER_HOST=127.0.0.1"
+Environment="SERVER_PORT=18080"
+Environment="LOG_LEVEL=info"
+ExecStart=/path/to/rust-web/target/release/rust-web
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动服务：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable rust-web
+sudo systemctl start rust-web
+```
+
+## CI/CD 集成
+
+### GitHub Actions
+
+创建 `.github/workflows/ci.yml` 文件：
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: rust_web_test
+          MYSQL_USER: rust_web_user
+          MYSQL_PASSWORD: test_password
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Run tests
+      run: cargo test
+      env:
+        DATABASE_URL: mysql://rust_web_user:test_password@localhost/rust_web_test
+        JWT_SECRET: test_secret
+        
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Deploy to production
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd /path/to/rust-web
+          git pull
+          cargo build --release
+          sudo systemctl restart rust-web
+```
+
+## 监控与日志
+
+### 日志配置
+
+在 `.env` 文件中设置日志级别：
+
+```
+LOG_LEVEL=info  # 可选值: trace, debug, info, warn, error
+```
+
+### 使用 Prometheus 监控
+
+1. 安装 Prometheus 和 Grafana：
+
+```bash
+# 安装 Prometheus
+wget https://github.com/prometheus/prometheus/releases/download/v2.40.0/prometheus-2.40.0.linux-amd64.tar.gz
+tar xvfz prometheus-2.40.0.linux-amd64.tar.gz
+cd prometheus-2.40.0.linux-amd64
+
+# 安装 Grafana
+sudo apt-get install -y apt-transport-https software-properties-common
+wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
+echo "deb https://packages.grafana.com/oss/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
+sudo apt-get update
+sudo apt-get install grafana
+```
+
+2. 配置 Prometheus：
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'rust-web'
+    static_configs:
+      - targets: ['localhost:18080']
+```
+
+3. 启动 Prometheus 和 Grafana：
+
+```bash
+# 启动 Prometheus
+./prometheus --config.file=prometheus.yml
+
+# 启动 Grafana
+sudo systemctl start grafana-server
+sudo systemctl enable grafana-server
+```
+
+## 备份与恢复
+
+### 数据库备份
+
+创建自动备份脚本 `backup.sh`：
 
 ```bash
 #!/bin/bash
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="/path/to/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-mysqldump -u user -p'password' user_db > "$BACKUP_DIR/backup_$DATE.sql"
+MYSQL_USER="rust_web_user"
+MYSQL_PASSWORD="your_password"
+DATABASE="rust_web"
+
+# 创建备份目录
+mkdir -p $BACKUP_DIR
+
+# 备份数据库
+mysqldump -u $MYSQL_USER -p$MYSQL_PASSWORD $DATABASE > $BACKUP_DIR/$DATABASE\_$TIMESTAMP.sql
+
+# 压缩备份文件
+gzip $BACKUP_DIR/$DATABASE\_$TIMESTAMP.sql
+
+# 删除7天前的备份
+find $BACKUP_DIR -name "*.sql.gz" -type f -mtime +7 -delete
 ```
 
-设置定时任务:
+设置定时任务：
+
 ```bash
+chmod +x backup.sh
+crontab -e
+```
+
+添加以下内容：
+
+```
 0 2 * * * /path/to/backup.sh
 ```
 
-## 安全配置
-
-### 防火墙设置
+### 数据库恢复
 
 ```bash
-# UFW (Ubuntu)
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-
-# firewalld (CentOS)
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --reload
+gunzip < /path/to/backups/rust_web_20230101_020000.sql.gz | mysql -u rust_web_user -p rust_web
 ```
-
-### SSL 配置
-
-使用 Let's Encrypt:
-```bash
-sudo certbot certonly --nginx -d api.example.com
-```
-
-## 监控设置
-
-### 1. 健康检查端点
-
-监控 URL: `https://api.example.com/health`
-
-### 2. Prometheus 配置
-
-```yaml
-scrape_configs:
-  - job_name: 'user-api'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['api.example.com:8080']
-```
-
-### 3. Grafana 仪表板
-
-导入推荐的仪表板模板，监控：
-- 请求率
-- 响应时间
-- 错误率
-- 系统资源使用情况
-
-## 日志管理
-
-### 1. 日志轮转配置
-
-创建 `/etc/logrotate.d/user-api`:
-
-```
-/var/log/user-api/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    create 0640 api_user api_user
-    sharedscripts
-    postrotate
-        systemctl reload user-api
-    endscript
-}
-```
-
-### 2. 集中式日志收集
-
-使用 ELK Stack 或 Loki 进行日志聚合。
-
-## 备份策略
-
-### 1. 数据库备份
-
-- 每日完整备份
-- 每小时增量备份
-- 保留 30 天的备份历史
-
-### 2. 配置备份
-
-- 定期备份环境配置
-- 使用版本控制管理配置文件
-
-## 维护计划
-
-### 1. 定期维护任务
-
-- 每日: 检查日志和监控警报
-- 每周: 检查系统更新
-- 每月: 审查性能指标
-- 每季: 安全审计
-
-### 2. 更新流程
-
-1. 在测试环境验证更新
-2. 创建备份
-3. 执行更新
-4. 验证功能
-5. 回滚计划（如需要）
 
 ## 故障排除
 
-### 1. 常见问题
+### 常见问题
 
-#### 数据库连接问题
-```bash
-# 检查数据库连接
-mysql -u api_user -p -h localhost user_db
+1. **服务无法启动**
+   - 检查环境变量是否正确设置
+   - 检查数据库连接是否可用
+   - 查看日志文件获取详细错误信息
 
-# 检查服务日志
-journalctl -u user-api -f
-```
+2. **数据库连接错误**
+   - 确认 MySQL 服务正在运行
+   - 验证数据库用户名和密码
+   - 检查防火墙设置是否允许数据库连接
 
-#### 性能问题
-```bash
-# 检查系统资源
-top
-iostat
-vmstat
+3. **性能问题**
+   - 检查服务器资源使用情况（CPU, 内存, 磁盘 I/O）
+   - 优化数据库查询
+   - 考虑增加服务器资源或水平扩展
 
-# 检查慢查询日志
-tail -f /var/log/mysql/slow.log
-```
-
-### 2. 紧急联系人
-
-创建 `EMERGENCY.md`:
-```markdown
-## 紧急联系人
-
-1. 系统管理员: admin@example.com
-2. 数据库管理员: dba@example.com
-3. 安全团队: security@example.com
-```
-
-### 3. 回滚流程
+### 日志查看
 
 ```bash
-# 1. 停止服务
-sudo systemctl stop user-api
+# 查看系统服务日志
+sudo journalctl -u rust-web
 
-# 2. 恢复数据库
-mysql -u root -p user_db < backup.sql
+# 查看 Docker 容器日志
+docker logs rust-web-app
 
-# 3. 恢复二进制文件
-sudo cp /backup/mysql_user_crud.old /usr/local/bin/mysql_user_crud
-
-# 4. 重启服务
-sudo systemctl start user-api
+# 查看 Nginx 日志
+sudo tail -f /var/log/nginx/error.log
 ```
 
-## 性能调优
+### 联系支持
 
-### 1. 系统调优
+如果您遇到无法解决的问题，请通过以下方式联系支持团队：
 
-编辑 `/etc/sysctl.conf`:
-```
-# 网络调优
-net.core.somaxconn = 65535
-net.ipv4.tcp_max_syn_backlog = 65535
-
-# 文件描述符
-fs.file-max = 2097152
-```
-
-### 2. 应用调优
-
-调整环境变量:
-```env
-DATABASE_POOL_SIZE=20
-RUST_MIN_THREADS=4
-RUST_MAX_THREADS=32
-```
-
-## 扩展建议
-
-### 1. 水平扩展
-
-- 使用负载均衡器
-- 部署多个 API 实例
-- 主从数据库复制
-
-### 2. 缓存策略
-
-- 使用 Redis 缓存热点数据
-- 实现请求限流
-- CDN 集成（如需要）
+- 提交 GitHub Issue
+- 发送邮件至 support@example.com
+- 在工作时间拨打技术支持热线：+1-234-567-8900
