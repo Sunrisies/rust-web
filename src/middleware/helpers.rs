@@ -62,7 +62,7 @@ where
             let body = res.request();
             // let sls = res.response().into_body().into();
             // log::error!("{:?}", sls);
-            println!("Hi from response{:?}", sls);
+            // println!("Hi from response{:?}", sls);
             println!("Hi from response{:?}", body);
             Ok(res)
         })
