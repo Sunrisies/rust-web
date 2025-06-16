@@ -1,14 +1,10 @@
 use crate::jsonwebtoken::{extract_token, has_permission};
-use crate::AppError;
 
-use actix_web::body;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
-// use futures_util::future::LocalBoxFuture;
-use actix_web::body::MessageBody;
-use log::{error, info};
+// use log::{error, info};
 use sea_orm::DatabaseConnection;
 use std::{
     future::{ready, Future, Ready},
