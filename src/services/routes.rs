@@ -2,6 +2,7 @@ use super::auth;
 use super::authenticator;
 use super::sse;
 use super::user;
+use crate::common_guard::PaginationGuard;
 use crate::config::permission::Permission;
 use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
@@ -21,7 +22,10 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             .service(web::scope("/sse").route("/stream", web::get().to(sse::sse_stream)))
             .service(
                 web::scope("/users")
-                    .route("", web::get().to(user::get_all_users))
+                    .route(
+                        "",
+                        web::get().guard(PaginationGuard).to(user::get_all_users),
+                    )
                     .route("/{uuid}", web::put().to(user::update_user))
                     .route("/{uuid}", web::get().to(user::get_user_by_uuid))
                     .route("/{uuid}", web::delete().to(user::delete_user)),

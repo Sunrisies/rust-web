@@ -123,6 +123,7 @@ impl ResponseError for AppError {
 // 添加从 JsonPayloadError 的转换
 impl From<actix_web::error::JsonPayloadError> for AppError {
     fn from(err: actix_web::error::JsonPayloadError) -> Self {
+        log::error!("JSON解析错误: {}", err.to_string());
         let message = parse_json_error(&err);
         Self::DeserializeError(message)
     }
