@@ -28,7 +28,6 @@ pub async fn verify_2fa(
     }
 
     let token = extract_token(&req.headers())
-        .await
         .ok_or_else(|| AppError::Unauthorized("请求未包含认证Token".into()))?;
 
     // 验证JWT是否具有权限

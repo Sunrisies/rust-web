@@ -27,7 +27,7 @@ pub fn has_permission(token: &str) -> Result<TokenData<TokenClaims>, Box<dyn std
     }
 }
 
-pub async fn extract_token(headers: &HeaderMap) -> Option<String> {
+pub fn extract_token(headers: &HeaderMap) -> Option<String> {
     if let Some(authorization_header) = headers.get("Authorization") {
         if let Ok(authorization_str) = authorization_header.to_str() {
             // 假设令牌格式为 "Bearer <token>"

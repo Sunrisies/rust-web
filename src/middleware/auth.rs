@@ -66,7 +66,7 @@ where
                 let res = fut.await?;
                 Ok(res)
             } else {
-                let token = extract_token(&headers).await;
+                let token = extract_token(&headers);
                 if let Some(token) = token {
                     let permission_result = has_permission(&token);
                     match permission_result {

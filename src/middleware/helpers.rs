@@ -13,10 +13,10 @@ where
 }
 
 impl<T: Serialize> Resp<T> {
-    pub fn ok(data: T) -> Self {
+    pub fn ok(data: T, message: &str) -> Self {
         Resp {
-            code: 0,
-            message: "ok".to_owned(),
+            code: 200,
+            message: message.to_owned(),
             data: Some(data),
         }
     }
@@ -27,13 +27,47 @@ impl<T: Serialize> Resp<T> {
 }
 
 impl Resp<()> {
-    pub fn err(error: i32, message: &str) -> Self {
-        Resp {
-            code: error,
-            message: message.to_owned(),
-            data: None,
-        }
-    }
+    // pub fn err(error: AppError) -> Self {
+    //     match error {
+    //         AppError::BadRequest(msg) => Resp {
+    //             code: 400,
+    //             message: msg,
+    //             data: None,
+    //         },
+    //         AppError::NotFound(msg) => Resp {
+    //             code: 404,
+    //             message: msg,
+    //             data: None,
+    //         },
+    //         AppError::Unauthorized(msg) => Resp {
+    //             code: 401,
+    //             message: msg,
+    //             data: None,
+    //         },
+    //         AppError::DeserializeError(msg) => Resp {
+    //             code: 400,
+    //             message: msg,
+    //             data: None,
+    //         },
+    //         AppError::Conflict(msg) => Resp {
+    //             code: 409,
+    //             message: msg,
+    //             data: None,
+    //         },
+
+    //         AppError::FORBIDDEN(msg) => Resp {
+    //             code: 403,
+    //             message: msg,
+    //             data: None,
+    //         },
+
+    //         AppError::InternalServerError(msg) => Resp {
+    //             code: 500,
+    //             message: msg,
+    //             data: None,
+    //         },
+    //     }
+    // }
 }
 
 pub type SimpleResp = Result<HttpResponse, AppError>;

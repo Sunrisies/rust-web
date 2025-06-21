@@ -4,36 +4,47 @@ use serde::Serialize;
 use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("服务器错误: {0}")]
-    Internal(String),
-
+    // 状态码400
     #[error("缺少参数: {0}")]
     BadRequest(String),
 
+    // 状态码404
     #[error("资源未找到: {0}")]
     NotFound(String),
 
+    // 状态码401
     #[error("权限不足: {0}")]
     Unauthorized(String),
 
+    // 状态码400
     #[error("请求体解析错误: {0}")]
     DeserializeError(String),
-
-    #[error("Conflict occurred: {0}")]
+    // 状态码409
+    #[error("冲突发生: {0}")]
     Conflict(String),
-
+    // 状态码403
     #[error("禁止访问: {0}")]
-    FORBIDDEN(String),
-
-    // 缺少参数
-    #[error("缺少参数: {0}")]
-    MissingParameter(String),
-
-    #[error("当前用户没有权限: {0}")]
     Forbidden(String),
-
+    // 状态码500
     #[error("服务器错误: {0}")]
     InternalServerError(String),
+
+    // 令牌格式不正确错误
+    // 状态码 400
+    #[error("令牌格式不正确")]
+    InvalidTokenFormat,
+
+    // 令牌未找到错误 状态码401
+    #[error("令牌未找到")]
+    TokenNotFound,
+
+    // 权限字符串为空错误 状态码403
+    #[error("权限字符串为空")]
+    PermissionsEmpty,
+
+    // 数据库错误 状态码500
+    #[error("数据库错误: {0}")]
+    DatabaseError(String),
 }
 
 #[derive(Serialize)]
@@ -46,11 +57,6 @@ struct ErrorResponse {
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            AppError::Internal(msg) => HttpResponse::InternalServerError().json(ErrorResponse {
-                code: 500,
-                error: "服务器错误".to_string(),
-                message: msg.to_string(),
-            }),
             AppError::BadRequest(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
                 error: "缺少参数".to_string(),
@@ -74,25 +80,39 @@ impl ResponseError for AppError {
             AppError::Conflict(msg) => {
                 HttpResponse::Conflict().json(serde_json::json!({ "error": msg }))
             }
-            AppError::MissingParameter(msg) => HttpResponse::BadRequest().json(ErrorResponse {
-                code: 400,
-                error: "Missing Parameter".to_string(),
-                message: msg.to_string(),
-            }),
-            AppError::FORBIDDEN(msg) => HttpResponse::Forbidden().json(ErrorResponse {
+
+            AppError::Forbidden(msg) => HttpResponse::Forbidden().json(ErrorResponse {
                 code: 403,
                 error: "禁止访问".to_string(),
                 message: msg.to_string(),
             }),
-            AppError::Forbidden(msg) => HttpResponse::Forbidden().json(ErrorResponse {
-                code: 403,
-                error: "当前用户没有权限".to_string(),
-                message: msg.to_string(),
-            }),
+
             AppError::InternalServerError(msg) => {
                 HttpResponse::InternalServerError().json(ErrorResponse {
                     code: 500,
                     error: "服务器错误".to_string(),
+                    message: msg.to_string(),
+                })
+            }
+            AppError::InvalidTokenFormat => HttpResponse::BadRequest().json(ErrorResponse {
+                code: 400,
+                error: "令牌格式不正确".to_string(),
+                message: "令牌格式不正确".to_string(),
+            }),
+            AppError::TokenNotFound => HttpResponse::Unauthorized().json(ErrorResponse {
+                code: 401,
+                error: "令牌未找到".to_string(),
+                message: "令牌未找到".to_string(),
+            }),
+            AppError::PermissionsEmpty => HttpResponse::Forbidden().json(ErrorResponse {
+                code: 403,
+                error: "权限字符串为空".to_string(),
+                message: "权限字符串为空".to_string(),
+            }),
+            AppError::DatabaseError(msg) => {
+                HttpResponse::InternalServerError().json(ErrorResponse {
+                    code: 500,
+                    error: "数据库错误".to_string(),
                     message: msg.to_string(),
                 })
             }
@@ -104,14 +124,12 @@ impl ResponseError for AppError {
 impl From<actix_web::error::JsonPayloadError> for AppError {
     fn from(err: actix_web::error::JsonPayloadError) -> Self {
         let message = parse_json_error(&err);
-        Self::BadRequest(message)
+        Self::DeserializeError(message)
     }
 }
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(error: sea_orm::DbErr) -> Self {
-        // 你可以根据实际情况决定如何转换数据库错误
-        // 这里简单地将所有数据库错误转为内部服务器错误
-        AppError::InternalServerError(error.to_string())
+        AppError::DatabaseError(error.to_string())
     }
 }

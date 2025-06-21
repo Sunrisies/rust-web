@@ -21,15 +21,23 @@ const MAX_PAGE_SIZE: u64 = 100;
 pub struct PaginationQuery {
     #[validate(range(min = 1, message = "页码必须大于01"))]
     page: Option<u64>,
+    // 每页数量不能超过100
+    #[validate(range(max = MAX_PAGE_SIZE, message = "每页数量不能超过100"))]
     limit: Option<u64>,
 }
 
-fn default_page() -> u64 {
-    1
-}
+impl PaginationQuery {
+    // 获取处理后的分页参数（应用默认值）
+    pub fn get_params(&self) -> (u64, u64) {
+        let page = self.page.unwrap_or(1);
+        let limit = self.limit.unwrap_or(10);
+        (page, limit)
+    }
 
-fn default_limit() -> u64 {
-    DEFAULT_PAGE_SIZE
+    // 可选：添加自定义验证逻辑（如互斥规则等）
+    pub fn validate_input(&self) -> Result<(), validator::ValidationErrors> {
+        self.validate()
+    }
 }
 
 #[derive(Serialize)]
@@ -56,35 +64,53 @@ struct ErrorResponse {
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
-    query: web::Json<PaginationQuery>,
+    query: web::Query<PaginationQuery>,
 ) -> SimpleResp {
-    // 验证分页参数
-    if query.page == 0 {
-        log::error!("页码必须大于0");
+    if let Err(e) = query.validate_input() {
         let error_response = ErrorResponse {
-            error: "页码必须大于0".to_string(),
+            error: e.to_string(),
         };
-        return Resp::ok(error_response).to_json_result();
-        // return Ok(HttpResponse::BadRequest().json(error_response));
+        // let errors_str = e
+        //     .iter()
+        //     .map(|e| e.to_string())
+        //     .collect::<Vec<String>>()
+        //     .join(", ");
+        log::error!("分页参数验证失败: {}", e);
+        return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
+        // return Resp::err(AppError::BadRequest(error_response.error)).to_json_result();
     }
+    log::error!("触发了获取用户列表的函数");
+    let (page, limit) = query.get_params();
 
+    // // 验证分页参数
+    // let mut query_with_defaults = PaginationQuery {
+    //     page: Some(page),
+    //     limit: Some(limit),
+    // };
+    // if let Err(validation_errors) = query_with_defaults.validate() {
+    //     log::error!("验证失败: {:?}", validation_errors);
+    //     let error_response = ErrorResponse {
+    //         error: validation_errors.to_string(),
+    //     };
+    //     return Resp::ok(error_response).to_json_result();
+    // }
     // 限制每页数量的范围
-    let limit = if query.limit == 0 {
+    let limit = if limit == 0 {
         DEFAULT_PAGE_SIZE
-    } else if query.limit > MAX_PAGE_SIZE {
+    } else if limit > MAX_PAGE_SIZE {
         MAX_PAGE_SIZE
     } else {
-        query.limit
+        limit
     };
 
     // 计算偏移量
-    let offset = (query.page - 1) * limit;
+    let offset = (page - 1) * limit;
 
     // 获取用户总数
     let total = UserEntity::find()
         .count(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("获取用户总数失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("获取用户总数失败: {}", e)))?;
 
     // 计算总页数
     let total_pages = (total as f64 / limit as f64).ceil() as u64;
@@ -96,21 +122,21 @@ pub async fn get_all_users(
         .limit(Some(limit))
         .all(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("获取用户列表失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("获取用户列表失败: {}", e)))?;
 
     let response = PaginatedResponse {
         data: users,
         pagination: PaginationInfo {
             total,
             total_pages,
-            current_page: query.page,
+            current_page: page,
             limit,
-            has_next: query.page < total_pages,
-            has_previous: query.page > 1,
+            has_next: page < total_pages,
+            has_previous: page > 1,
         },
     };
 
-    Resp::ok(response).to_json_result()
+    Resp::ok(response, "获取用户列表成功").to_json_result()
     // Ok(HttpResponse::Ok().json(response))
 }
 
@@ -131,7 +157,7 @@ pub async fn get_user_by_uuid(
     let user = UserEntity::find_by_uuid(&uuid)
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("获取用户信息失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("获取用户信息失败: {}", e)))?;
 
     match user {
         Some(user) => Ok(HttpResponse::Ok().json(user)),
@@ -163,7 +189,7 @@ pub async fn update_user(
     let existing_user = UserEntity::find_by_uuid(&uuid)
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("查询用户失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("查询用户失败: {}", e)))?;
 
     let existing_user =
         existing_user.ok_or_else(|| AppError::NotFound(format!("ID为{}的用户不存在", uuid)))?;
@@ -179,7 +205,7 @@ pub async fn update_user(
             .filter(user::Column::Uuid.ne(&*uuid))
             .count(db.as_ref())
             .await
-            .map_err(|e| AppError::Internal(format!("用户名检查失败: {}", e)))?
+            .map_err(|e| AppError::InternalServerError(format!("用户名检查失败: {}", e)))?
             > 0;
 
         if exists {
@@ -223,7 +249,7 @@ pub async fn update_user(
     let updated_user = user_active
         .update(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("更新失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("更新失败: {}", e)))?;
     let notification = serde_json::json!({
         "event": "user_updated",
         "data": {
@@ -252,7 +278,7 @@ pub async fn delete_user(
 
     let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid)
         .await
-        .map_err(|e| AppError::Internal(format!("删除用户时出错: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("删除用户时出错: {}", e)))?;
 
     if delete_result.rows_affected == 0 {
         Err(AppError::NotFound(format!("UUID 为 {} 的用户不存在", uuid)))

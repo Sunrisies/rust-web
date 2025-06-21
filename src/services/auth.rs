@@ -57,7 +57,7 @@ pub async fn login(
         .filter(user::Column::UserName.eq(&user_data.user_name))
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
+        .map_err(|e| AppError::InternalServerError(format!("检查用户名时发生错误: {}", e)))?
         .ok_or(AppError::NotFound(format!(
             "用户名 '{}' 不存在",
             user_data.user_name
@@ -86,7 +86,7 @@ pub async fn login(
         &token_claims,
         &EncodingKey::from_secret("secret_key".as_bytes()), // 替换为你的密钥
     )
-    .map_err(|e| AppError::Internal(format!("生成令牌时发生错误: {}", e)))?;
+    .map_err(|e| AppError::InternalServerError(format!("生成令牌时发生错误: {}", e)))?;
     let user_info = UserInfo {
         id: credentials.id,
         uuid: credentials.uuid,
@@ -117,7 +117,7 @@ pub async fn register(
     user_data: web::Json<RegisterResponse>,
 ) -> Result<HttpResponse, AppError> {
     user_data.validate().map_err(|e| {
-        info!("{:?}", e); // 打印验证错误
+        info!("注册:{:?}", e); // 打印验证错误
         AppError::DeserializeError(e.to_string())
     })?;
     let user_data = user_data.into_inner(); // 提取内部数据
@@ -127,7 +127,7 @@ pub async fn register(
         .filter(user::Column::UserName.eq(&user_data.user_name))
         .count(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("检查用户名时发生错误: {}", e)))?
+        .map_err(|e| AppError::InternalServerError(format!("检查用户名时发生错误: {}", e)))?
         > 0;
 
     if exists {
@@ -140,7 +140,7 @@ pub async fn register(
     // 密码加密
     let hashed_password = match hash(&user_data.pass_word, DEFAULT_COST) {
         Ok(hashed) => hashed,
-        Err(_) => return Err(AppError::Internal("密码加密失败".to_string())),
+        Err(_) => return Err(AppError::InternalServerError("密码加密失败".to_string())),
     };
 
     // 创建新用户
@@ -157,7 +157,7 @@ pub async fn register(
     let created_user = new_user
         .insert(db.as_ref())
         .await
-        .map_err(|e| AppError::Internal(format!("创建用户失败: {}", e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("创建用户失败: {}", e)))?;
 
     Ok(HttpResponse::Created().json(created_user))
 }
