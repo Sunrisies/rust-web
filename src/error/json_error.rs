@@ -4,7 +4,7 @@ use regex::Regex;
 /// 解析JSON错误并返回用户友好的消息
 pub fn parse_json_error(err: &JsonPayloadError) -> String {
     let error_str = err.to_string();
-
+    log::error!("JSON解析错误: {}", error_str);
     // 提取缺失字段名
     let re = Regex::new(r"missing field `([^`]+)`").unwrap();
     if let Some(caps) = re.captures(&error_str) {

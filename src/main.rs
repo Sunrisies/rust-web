@@ -2,8 +2,7 @@ use actix_cors::Cors;
 use actix_web::{middleware::ErrorHandlers, web, App, HttpServer};
 use mysql_user_crud::{
     config_routes, create_db_pool, log::init_logger, middleware::auth::Auth,
-    middleware::helpers::ResponseMiddleware, utils::error_handler::add_error_header,
-    utils::sse::SseNotifier, AppError, Logger,
+    utils::error_handler::add_error_header, utils::sse::SseNotifier, AppError, Logger,
 };
 use std::env;
 
@@ -40,7 +39,7 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(notifier.clone())
             .app_data(app_data.clone())
-            .wrap(ResponseMiddleware)
+            // .wrap(ResponseMiddleware)
             .wrap(Logger)
             .wrap(Auth)
             .wrap(actix_web::middleware::Logger::default())

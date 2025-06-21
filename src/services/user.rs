@@ -1,8 +1,10 @@
 use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
+use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
 use crate::utils::sse::SseNotifier;
+use actix_web::cookie::time::error;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
@@ -12,15 +14,14 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
-
-#[derive(Deserialize)]
+#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PaginationQuery {
-    #[serde(default = "default_page")]
-    page: u64,
-    #[serde(default = "default_limit")]
-    limit: u64,
+    #[validate(range(min = 1, message = "页码必须大于01"))]
+    page: Option<u64>,
+    limit: Option<u64>,
 }
 
 fn default_page() -> u64 {
@@ -55,14 +56,16 @@ struct ErrorResponse {
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
-    query: web::Query<PaginationQuery>,
-) -> Result<HttpResponse> {
+    query: web::Json<PaginationQuery>,
+) -> SimpleResp {
     // 验证分页参数
     if query.page == 0 {
+        log::error!("页码必须大于0");
         let error_response = ErrorResponse {
             error: "页码必须大于0".to_string(),
         };
-        return Ok(HttpResponse::BadRequest().json(error_response));
+        return Resp::ok(error_response).to_json_result();
+        // return Ok(HttpResponse::BadRequest().json(error_response));
     }
 
     // 限制每页数量的范围
@@ -107,7 +110,8 @@ pub async fn get_all_users(
         },
     };
 
-    Ok(HttpResponse::Ok().json(response))
+    Resp::ok(response).to_json_result()
+    // Ok(HttpResponse::Ok().json(response))
 }
 
 // 通过ID获取用户
