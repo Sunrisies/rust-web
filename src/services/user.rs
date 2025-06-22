@@ -1,12 +1,9 @@
-use std::fmt::Debug;
-
 use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
 use crate::utils::sse::SseNotifier;
-use actix_web::cookie::time::error;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
@@ -16,6 +13,8 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::fmt::Debug;
+use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
@@ -62,8 +61,7 @@ pub struct PaginationInfo {
 struct ErrorResponse {
     error: String,
 }
-42.192.53.166:21116
-rx7HM207TQKXrONIDUIsCBb1V8na8jRzZuDlrYCBSs8=
+
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
@@ -150,31 +148,26 @@ pub async fn get_all_users(
 pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
-) -> Result<HttpResponse> {
+) -> Result<HttpResponse, AppError> {
     // 验证UUID格式
-    if uuid.is_empty() || uuid.len() != 36 {
-        let error_response = ErrorResponse {
-            error: "无效的UUID格式".to_string(),
-        };
-        return Ok(HttpResponse::BadRequest().json(error_response));
-    }
+    let uuid =
+        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
 
     // 查询用户
-    let user = UserEntity::find_by_uuid(&uuid)
+    let user = UserEntity::find_by_uuid(&uuid.to_string())
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::InternalServerError(format!("获取用户信息失败: {}", e)))?;
+        .map_err(|e| {
+            log::error!("获取用户信息失败: {}", e); // 记录错误日志
+            AppError::InternalServerError("获取用户信息失败".to_string())
+        })?;
 
     match user {
         Some(user) => Ok(HttpResponse::Ok().json(user)),
-        None => {
-            let error_response = ErrorResponse {
-                error: format!("UUID为{}的用户不存在", uuid),
-            };
-            Ok(HttpResponse::NotFound().json(error_response))
-        }
+        None => Err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))),
     }
 }
+
 // 更新用户信息
 pub async fn update_user(
     db: web::Data<DatabaseConnection>,
