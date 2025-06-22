@@ -265,25 +265,24 @@ pub async fn update_user(
 }
 
 // 删除用户
-pub async fn delete_user(
-    db: web::Data<DatabaseConnection>,
-    uuid: web::Path<String>,
-) -> Result<HttpResponse, AppError> {
-    log::error!("触发了删除用户的函数");
-    // 验证UUID格式
-    if uuid.is_empty() || uuid.len() != 36 {
-        return Err(AppError::BadRequest("无效的UUID格式".to_string()));
-    }
+pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<String>) -> SimpleResp {
+    log::info!("删除用户请求: {}", uuid); // 改为info级别
 
-    let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid)
+    // 使用uuid库验证UUID格式
+    let uuid =
+        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
+
+    let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid.to_string())
         .await
-        .map_err(|e| AppError::InternalServerError(format!("删除用户时出错: {}", e)))?;
+        .map_err(|e| {
+            log::error!("删除用户时数据库错误: {}", e); // 记录详细错误日志
+            AppError::InternalServerError("删除用户失败".to_string()) // 对外暴露简略信息
+        })?;
 
     if delete_result.rows_affected == 0 {
-        Err(AppError::NotFound(format!("UUID 为 {} 的用户不存在", uuid)))
+        Err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid)))
     } else {
-        Ok(HttpResponse::Ok().json(json!({
-            "message": format!("UUID 为 {} 的用户已删除", uuid)
-        })))
+        log::info!("成功删除用户: {}", uuid); // 记录成功操作
+        Resp::ok("", &format!("用户 {} 已删除", uuid).to_string()).to_json_result()
     }
 }
