@@ -5,6 +5,7 @@ use crate::jsonwebtoken::TokenClaims;
 use crate::models::user::{self, Entity as UserEntity};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
+use crate::user::Model;
 use actix_web::{web, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
@@ -67,12 +68,24 @@ pub async fn login(
     if let Err(_) = verify(&user_data.pass_word, &credentials.pass_word) {
         return Err(AppError::Unauthorized("用户名或密码错误".into()));
     }
-    // 生成 JWT 令牌
+
+    // 生成JWT令牌
+    let token = generate_jwt(
+        &credentials,
+        "secret_key",
+        3600, // 可配置的过期时间
+    )?;
+    // 如果验证通过，返回成功响应
+    Ok(HttpResponse::Ok().json(build_login_response(credentials, token)))
+}
+
+// 提取JWT生成逻辑
+fn generate_jwt(credentials: &Model, secret: &str, expires_in: u64) -> Result<String, AppError> {
     let exp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        + 3600; // 令牌有效期为 1 小时
+        + expires_in; // 令牌有效期为 1 小时
 
     let token_claims = TokenClaims {
         user_uuid: credentials.uuid.clone(),
@@ -81,12 +94,18 @@ pub async fn login(
         permissions: credentials.permissions.clone(),
     };
 
-    let token = encode(
+    encode(
         &Header::default(),
         &token_claims,
-        &EncodingKey::from_secret("secret_key".as_bytes()), // 替换为你的密钥
+        &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|e| AppError::InternalServerError(format!("生成令牌时发生错误: {}", e)))?;
+    .map_err(|e| {
+        log::error!("JWT生成失败: {}", e);
+        AppError::InternalServerError("登录服务暂时不可用".into())
+    })
+}
+
+fn build_login_response(credentials: Model, token: String) -> CommonResponse<LoginData> {
     let user_info = UserInfo {
         id: credentials.id,
         uuid: credentials.uuid,
@@ -96,10 +115,10 @@ pub async fn login(
         email: credentials.email,
         phone: credentials.phone,
         role: credentials.role,
-        permissions: credentials.permissions,
+        permissions: credentials.permissions.clone(),
     };
-    // 构造返回的数据结构
-    let login_response = CommonResponse {
+
+    CommonResponse {
         code: 200,
         message: "登录成功".to_string(),
         data: LoginData {
@@ -107,11 +126,9 @@ pub async fn login(
             access_token: token,
             expires_in: 3600,
         },
-    };
-
-    // 如果验证通过，返回成功响应
-    Ok(HttpResponse::Ok().json(login_response))
+    }
 }
+
 pub async fn register(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<RegisterResponse>,
