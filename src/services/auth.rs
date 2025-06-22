@@ -199,7 +199,7 @@ pub async fn get_permissions_by_id(
     _db: web::Data<DatabaseConnection>,
     query: web::Query<PermissionRequest>,
 ) -> Result<HttpResponse> {
-    log::error!("permission_id: {}", query.permissions);
+    log::info!("permission_id: {}", query.permissions);
     match query.permissions.parse::<u64>() {
         Ok(permissions_bits) => {
             let stored_permissions =
@@ -227,13 +227,6 @@ pub async fn get_permissions_by_id(
 }
 
 pub async fn get_permissions() -> Result<HttpResponse, AppError> {
-    // let permission_list = PERMISSION_LIST
-    //     .iter()
-    //     .map(|(name, description)| serde_json::json!({"name": name, "description": description}))
-    //     .collect::<Vec<_>>();
-
-    // HttpResponse::Ok().json(permission_list)
-
     let permission_list = PERMISSION_LIST
         .iter()
         .filter(|(name, _)| {
