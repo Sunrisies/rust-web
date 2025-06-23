@@ -21,10 +21,10 @@ const MAX_PAGE_SIZE: u64 = 100;
 #[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PaginationQuery {
     #[validate(range(min = 1, message = "页码必须大于01"))]
-    pub page: u64,
+    pub page: Option<u64>,
     // 每页数量不能超过100
     #[validate(range(max = MAX_PAGE_SIZE, message = "每页数量不能超过100"))]
-    pub limit: u64,
+    pub limit: Option<u64>,
 }
 
 // impl PaginationQuery {
@@ -65,8 +65,21 @@ struct ErrorResponse {
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
-    query: web::Json<PaginationQuery>,
+    query: web::Query<PaginationQuery>,
 ) -> SimpleResp {
+    // 验证分页参数
+    let validated_query = match query.validate() {
+        Ok(_) => query.into_inner(),
+        Err(e) => {
+            log::error!("分页参数验证失败: {:?}", e);
+            let error_response = ErrorResponse {
+                error: e.to_string(),
+            };
+            return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
+            // return HttpResponse::BadRequest().json(error_response);
+        }
+    };
+    log::error!("获取数据：{}", validated_query.page.unwrap_or(1));
     // if let Err(mut e) = query.validate_input() {
     //     // 提取所有错误提示
     //     let errors_str = e.errors_mut();

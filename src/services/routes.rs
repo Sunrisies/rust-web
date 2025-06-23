@@ -1,12 +1,18 @@
+use std::default;
+
 use super::auth;
 use super::authenticator;
 use super::sse;
 use super::user;
-use crate::common_guard::PaginationGuard;
+use crate::common_guard::ParamGuard;
+// use crate::common_guard::QueryGuard;
 use crate::config::permission::Permission;
+use crate::services::user::PaginationQuery;
 use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
+use actix_web::web::Query;
 use actix_web::HttpResponse;
+use serde_json::json;
 // 示例接口
 async fn get_article() -> HttpResponse {
     HttpResponse::Ok().body("文章列表")
@@ -17,15 +23,20 @@ async fn create_article() -> HttpResponse {
 }
 
 pub fn config_routes(cfg: &mut web::ServiceConfig) {
+    let guard = ParamGuard::builder()
+        .validate_or_default(
+            "page",
+            |_, v| v.parse::<u64>().is_ok(), // 验证函数
+            "1".to_string(),                 // 默认值
+        )
+        .error_handler(|| HttpResponse::BadRequest().json(json!({"error": "Invalid parameters"})))
+        .build();
     cfg.service(
         web::scope("/api")
             .service(web::scope("/sse").route("/stream", web::get().to(sse::sse_stream)))
             .service(
                 web::scope("/users")
-                    .route(
-                        "",
-                        web::get().guard(PaginationGuard).to(user::get_all_users),
-                    )
+                    .route("", web::get().guard(guard).to(user::get_all_users))
                     .route("/{uuid}", web::put().to(user::update_user))
                     .route("/{uuid}", web::get().to(user::get_user_by_uuid))
                     .route("/{uuid}", web::delete().to(user::delete_user)),
