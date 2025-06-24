@@ -164,11 +164,12 @@ use actix_web::{
     http::header,
     Error, HttpMessage, HttpResponse,
 };
-use std::cell::RefCell;
+use serde_json::de;
 use std::collections::HashMap;
 use std::future::{ready, Ready};
 use std::pin::Pin;
 use std::rc::Rc;
+use std::{cell::RefCell, default};
 
 use crate::AppError;
 
@@ -178,6 +179,7 @@ type ValidatorFn = Box<dyn Fn(&str, &str) -> bool + Send + Sync>;
 pub struct ParamGuard {
     validators: HashMap<String, ValidatorFn>,
     error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
+    default_values: HashMap<String, String>,
 }
 
 impl ParamGuard {
@@ -193,7 +195,7 @@ impl Guard for ParamGuard {
         // 获取查询参数
         let query = ctx.head().uri.query().unwrap_or("");
         log::info!("query: {:?}", query);
-        let params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
+        let mut params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
             .into_owned()
             .collect();
         log::info!("Parsed parameters: {:?}", params);
@@ -215,9 +217,30 @@ impl Guard for ParamGuard {
             match params.get(param_name.as_str()) {
                 Some(value) => {
                     log::info!("Found parameter: {}={}", param_name, value);
+                    // 参数类型不对
                     if !validator(param_name, value) {
                         log::warn!("Parameter validation failed: {}={}", param_name, value);
-                        return false;
+                        // 先检测有没有默认值
+                        if let Some(default_value) = self.default_values.get(param_name) {
+                            // 将默认值添加到请求参数中
+
+                            log::info!(
+                                "Using default value for parameter {}: {}",
+                                param_name,
+                                default_value
+                            );
+                            return true;
+                        } else {
+                            ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(
+                                AppError::Forbidden(
+                                    format!("参数类型错误: {}", param_name).to_string(),
+                                ),
+                            ))));
+                            return false;
+                        }
+                    } else {
+                        log::info!("Parameter validation succeeded: {}={}", param_name, value);
+                        return true;
                     }
                 }
                 None => {
@@ -246,6 +269,7 @@ impl Guard for ParamGuard {
 pub struct ParamGuardBuilder {
     validators: HashMap<String, ValidatorFn>,
     error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
+    default_values: HashMap<String, String>,
 }
 
 impl ParamGuardBuilder {
@@ -253,6 +277,7 @@ impl ParamGuardBuilder {
         Self {
             validators: HashMap::new(),
             error_handler: None,
+            default_values: HashMap::new(),
         }
     }
 
@@ -266,22 +291,16 @@ impl ParamGuardBuilder {
         self
     }
 
-    pub fn validate_or_default<F>(mut self, param: &str, validator: F, default: String) -> Self
+    pub fn validate_or_default<F>(mut self, param: &str, validator: F, default: &str) -> Self
     where
         F: Fn(&str, &str) -> bool + 'static + Send + Sync,
     {
         self.validators.insert(
             param.to_string(),
-            Box::new(move |name, value| {
-                log::info!("Validating parameter: {}", default);
-                if value.is_empty() {
-                    // 自动补充默认值到请求中
-                    true
-                } else {
-                    validator(name, value)
-                }
-            }),
+            Box::new(move |name, value| validator(name, value)),
         );
+        self.default_values
+            .insert(param.to_string(), default.to_string());
         self
     }
 
@@ -299,6 +318,7 @@ impl ParamGuardBuilder {
         ParamGuard {
             validators: self.validators,
             error_handler: self.error_handler,
+            default_values: self.default_values,
         }
     }
 }

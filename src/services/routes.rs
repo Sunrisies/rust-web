@@ -26,8 +26,12 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
     let guard = ParamGuard::builder()
         .validate_or_default(
             "page",
-            |_, v| v.parse::<u64>().is_ok(), // 验证函数
-            "1".to_string(),                 // 默认值
+            |_, v| {
+                log::info!("page: {}", v); // 验证函数
+                log::error!("asasasdas{}", v.parse::<u64>().is_ok());
+                v.parse::<u64>().is_ok()
+            }, // 验证函数
+            "1",
         )
         .error_handler(|| HttpResponse::BadRequest().json(json!({"error": "Invalid parameters"})))
         .build();
