@@ -164,9 +164,13 @@ use actix_web::{
     http::header,
     Error, HttpMessage, HttpResponse,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::future::{ready, Ready};
 use std::pin::Pin;
+use std::rc::Rc;
+
+use crate::AppError;
 
 // 类型别名：校验函数 (参数名, 参数值) -> bool
 type ValidatorFn = Box<dyn Fn(&str, &str) -> bool + Send + Sync>;
@@ -184,24 +188,29 @@ impl ParamGuard {
 }
 
 impl Guard for ParamGuard {
-    fn check(&self, req: &GuardContext<'_>) -> bool {
-        log::error!("ParamGuard check called with query: {:?}", req.head());
+    fn check(&self, ctx: &GuardContext<'_>) -> bool {
+        log::error!("ParamGuard check called with query: {:?}", ctx.head());
         // 获取查询参数
-        let query = req.head().uri.query().unwrap_or("");
+        let query = ctx.head().uri.query().unwrap_or("");
         log::info!("query: {:?}", query);
         let params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
             .into_owned()
             .collect();
         log::info!("Parsed parameters: {:?}", params);
         // 如果当前传入的参数在校验器中不存在，则返回错误响应
-        // if self.validators.is_empty() {
-        //     log::warn!("No validators defined, skipping parameter validation.");
-        //     return true; // 没有校验器时直接通过
-        // }
+        // 检查是否存在未声明的参数
+        for param_name in params.keys() {
+            if !self.validators.contains_key(param_name) {
+                log::warn!("意外参数: {}", param_name);
+                ctx.req_data_mut()
+                    .insert(Rc::new(RefCell::new(Some(AppError::Forbidden(
+                        format!("未声明参数: {}", param_name).to_string(),
+                    )))));
+                return false; // 发现未声明参数立即返回失败
+            }
+        }
         // 遍历所有校验器
         for (param_name, validator) in &self.validators {
-            // 如果当前传入的参数在校验器中不存在返回错误
-
             log::info!("Checking parameter: {}", param_name);
             match params.get(param_name.as_str()) {
                 Some(value) => {
@@ -222,7 +231,7 @@ impl Guard for ParamGuard {
 
     // fn on_reject(
     //     &self,
-    //     req: &ServiceRequest,
+    //     ctx: &ServiceRequest,
     // ) -> Pin<Box<dyn futures::Future<Output = Result<ServiceResponse, Error>>>> {
     //     let response = match &self.error_handler {
     //         Some(handler) => handler(),
