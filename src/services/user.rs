@@ -3,13 +3,19 @@ use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
+use crate::utils::common_guard::Query;
 use crate::utils::sse::SseNotifier;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveModelTrait,
+    ColumnTrait,
+    DatabaseConnection,
+    EntityTrait,
+    PaginatorTrait,
+    QueryFilter,
+    // QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,15 +24,25 @@ use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
-#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Validate, Debug, Clone, Serialize, Deserialize)]
 pub struct PaginationQuery {
+    #[serde(default = "default_page")]
     #[validate(range(min = 1, message = "页码必须大于01"))]
     pub page: Option<u64>,
     // 每页数量不能超过100
+    #[serde(default = "default_size")]
     #[validate(range(max = MAX_PAGE_SIZE, message = "每页数量不能超过100"))]
     pub limit: Option<u64>,
 }
+// 默认值函数
+// 添加默认函数实现
+fn default_page() -> Option<u64> {
+    Some(1)
+}
 
+fn default_size() -> Option<u64> {
+    Some(DEFAULT_PAGE_SIZE)
+}
 // impl PaginationQuery {
 //     // 获取处理后的分页参数（应用默认值）
 //     pub fn get_params(&self) -> (u64, u64) {
@@ -65,21 +81,24 @@ struct ErrorResponse {
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
-    query: web::Query<PaginationQuery>,
+    query: Query<PaginationQuery>,
 ) -> SimpleResp {
+    log::error!("触发了获取用户列表的函数{:?}", query);
+    let s = query.validate();
+    log::error!("123123131{:?}", s);
     // 验证分页参数
-    let validated_query = match query.validate() {
-        Ok(_) => query.into_inner(),
-        Err(e) => {
-            log::error!("分页参数验证失败: {:?}", e);
-            let error_response = ErrorResponse {
-                error: e.to_string(),
-            };
-            return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
-            // return HttpResponse::BadRequest().json(error_response);
-        }
-    };
-    log::error!("获取数据：{}", validated_query.page.unwrap_or(1));
+    // let validated_query = match query.validate() {
+    //     Ok(_) => query.into_inner(),
+    //     Err(e) => {
+    //         log::error!("分页参数验证失败: {:?}", e);
+    //         let error_response = ErrorResponse {
+    //             error: e.to_string(),
+    //         };
+    //         return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
+    //         // return HttpResponse::BadRequest().json(error_response);
+    //     }
+    // };
+    // log::error!("获取数据：{}", validated_query.page.unwrap_or(1));
     // if let Err(mut e) = query.validate_input() {
     //     // 提取所有错误提示
     //     let errors_str = e.errors_mut();

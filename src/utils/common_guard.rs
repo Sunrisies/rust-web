@@ -1,324 +1,437 @@
-// // use crate::AppError;
+// // // use crate::AppError;
+// // // use actix_web::guard::{Guard, GuardContext};
+// // // use log::{error, info};
+// // // use std::cell::RefCell;
+// // // use std::rc::Rc;
+
+// // // pub struct PaginationGuard;
+
+// // // impl Guard for PaginationGuard {
+// // //     fn check(&self, ctx: &GuardContext<'_>) -> bool {
+// // //         match self.check_permission(ctx) {
+// // //             Ok(result) => result,
+// // //             Err(err) => {
+// // //                 ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(err))));
+// // //                 false
+// // //             }
+// // //         }
+// // //     }
+// // // }
+
+// // // impl PaginationGuard {
+// // //     fn check_permission(&self, ctx: &GuardContext<'_>) -> Result<bool, AppError> {
+// // //         let head = ctx.head();
+// // //         log::info!("head: {:?}", head);
+// // //         log::info!("query_params: {:?}", ctx);
+// // //         Ok(true)
+// // //     }
+// // // }
+
 // // use actix_web::guard::{Guard, GuardContext};
+// // use actix_web::web::Query;
+// // use actix_web::HttpResponse;
 // // use log::{error, info};
+// // use serde::{Deserialize, Serialize};
 // // use std::cell::RefCell;
 // // use std::rc::Rc;
+// // use validator::Validate;
 
-// // pub struct PaginationGuard;
+// // // 假设的 AppError 结构体
+// // #[derive(Debug, Serialize)]
+// // pub enum AppError {
+// //     BadRequest(String),
+// //     InternalServerError(String),
+// // }
 
-// // impl Guard for PaginationGuard {
+// // // 假设的 PaginationQuery 结构体
+// // #[derive(Debug, Serialize, Deserialize)]
+// // pub struct PaginationQuery {
+// //     pub page: Option<u64>,
+// //     pub limit: Option<u64>,
+// // }
+
+// // // 假设的 PaginatedResponse 结构体
+// // #[derive(Debug, Serialize)]
+// // pub struct PaginatedResponse {
+// //     pub data: Vec<UserEntity>,
+// //     pub pagination: PaginationInfo,
+// // }
+
+// // // 假设的 PaginationInfo 结构体
+// // #[derive(Debug, Serialize)]
+// // pub struct PaginationInfo {
+// //     pub total: u64,
+// //     pub total_pages: u64,
+// //     pub current_page: u64,
+// //     pub limit: u64,
+// //     pub has_next: bool,
+// //     pub has_previous: bool,
+// // }
+
+// // // 假设的 UserEntity 结构体
+// // #[derive(Debug, Serialize)]
+// // pub struct UserEntity {
+// //     pub id: u64,
+// //     pub name: String,
+// //     // 其他字段
+// // }
+
+// // // 假设的 ErrorResponse 结构体
+// // #[derive(Debug, Serialize)]
+// // pub struct ErrorResponse {
+// //     pub error: String,
+// // }
+
+// // // 假设的 DEFAULT_PAGE_SIZE 和 MAX_PAGE_SIZE 常量
+// // const DEFAULT_PAGE_SIZE: u64 = 10;
+// // const MAX_PAGE_SIZE: u64 = 100;
+
+// // // 泛型守卫结构体
+// // pub struct QueryGuard<Q>
+// // where
+// //     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
+// // {
+// //     query: Query<Q>,
+// // }
+
+// // impl<Q> QueryGuard<Q>
+// // where
+// //     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
+// // {
+// //     pub fn new(query: Query<Q>) -> Self {
+// //         QueryGuard { query }
+// //     }
+// // }
+
+// // impl<Q> Guard for QueryGuard<Q>
+// // where
+// //     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
+// // {
 // //     fn check(&self, ctx: &GuardContext<'_>) -> bool {
-// //         match self.check_permission(ctx) {
-// //             Ok(result) => result,
-// //             Err(err) => {
-// //                 ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(err))));
-// //                 false
-// //             }
-// //         }
+// //         log::error("QueryGuard check called with query: {:?}", self.query);
+// //         // match self.validate_query(&self.query.into_inner()) {
+// //         //     Ok(_) => true,
+// //         //     Err(err) => {
+// //         //         ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(err))));
+// //         //         false
+// //         //     }
+// //         // }
+// //         true
 // //     }
 // // }
 
-// // impl PaginationGuard {
-// //     fn check_permission(&self, ctx: &GuardContext<'_>) -> Result<bool, AppError> {
-// //         let head = ctx.head();
-// //         log::info!("head: {:?}", head);
-// //         log::info!("query_params: {:?}", ctx);
-// //         Ok(true)
-// //     }
-// // }
+// // // // 验证分页参数的逻辑
+// // // impl<Q, E> QueryGuard<Q, E>
+// // // where
+// // //     Q: serde::Deserialize<'static> + std::fmt::Debug,
+// // //     E: Serialize,
+// // // {
+// // //     fn validate_query(&self, query: &Q) -> Result<(), AppError> {
+// // //         // 这里可以根据具体的查询类型进行验证
+// // //         if let Some(pagination_query) = query.downcast_ref::<PaginationQuery>() {
+// // //             if pagination_query.page.is_none() || pagination_query.limit.is_none() {
+// // //                 return Err(AppError::BadRequest(
+// // //                     "分页参数 page 和 limit 必须提供".to_string(),
+// // //                 ));
+// // //             }
 
-// use actix_web::guard::{Guard, GuardContext};
-// use actix_web::web::Query;
-// use actix_web::HttpResponse;
-// use log::{error, info};
-// use serde::{Deserialize, Serialize};
-// use std::cell::RefCell;
+// // //             let page = pagination_query.page.unwrap();
+// // //             let limit = pagination_query.limit.unwrap();
+
+// // //             if page < 1 {
+// // //                 return Err(AppError::BadRequest(
+// // //                     "分页参数 page 必须大于等于 1".to_string(),
+// // //                 ));
+// // //             }
+
+// // //             if limit < 1 {
+// // //                 return Err(AppError::BadRequest(
+// // //                     "分页参数 limit 必须大于等于 1".to_string(),
+// // //                 ));
+// // //             }
+
+// // //             info!("分页参数验证成功: page = {}, limit = {}", page, limit);
+// // //             Ok(())
+// // //         } else {
+// // //             Err(AppError::BadRequest("无效的查询参数类型".to_string()))
+// // //         }
+// // //     }
+// // // }
+
+// use actix_web::{
+//     dev::{ServiceRequest, ServiceResponse},
+//     guard::{Guard, GuardContext},
+//     http::header,
+//     Error, HttpMessage, HttpResponse,
+// };
+// use chrono::format;
+// use serde_json::de;
+// use std::collections::HashMap;
+// use std::future::{ready, Ready};
+// use std::pin::Pin;
 // use std::rc::Rc;
-// use validator::Validate;
+// use std::{cell::RefCell, default};
 
-// // 假设的 AppError 结构体
-// #[derive(Debug, Serialize)]
-// pub enum AppError {
-//     BadRequest(String),
-//     InternalServerError(String),
+// use crate::AppError;
+
+// // 类型别名：校验函数 (参数名, 参数值) -> bool
+// type ValidatorFn = Box<dyn Fn(&str, &str) -> bool + Send + Sync>;
+
+// pub struct ParamGuard {
+//     validators: HashMap<String, ValidatorFn>,
+//     error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
+//     default_values: HashMap<String, String>,
 // }
 
-// // 假设的 PaginationQuery 结构体
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct PaginationQuery {
-//     pub page: Option<u64>,
-//     pub limit: Option<u64>,
-// }
-
-// // 假设的 PaginatedResponse 结构体
-// #[derive(Debug, Serialize)]
-// pub struct PaginatedResponse {
-//     pub data: Vec<UserEntity>,
-//     pub pagination: PaginationInfo,
-// }
-
-// // 假设的 PaginationInfo 结构体
-// #[derive(Debug, Serialize)]
-// pub struct PaginationInfo {
-//     pub total: u64,
-//     pub total_pages: u64,
-//     pub current_page: u64,
-//     pub limit: u64,
-//     pub has_next: bool,
-//     pub has_previous: bool,
-// }
-
-// // 假设的 UserEntity 结构体
-// #[derive(Debug, Serialize)]
-// pub struct UserEntity {
-//     pub id: u64,
-//     pub name: String,
-//     // 其他字段
-// }
-
-// // 假设的 ErrorResponse 结构体
-// #[derive(Debug, Serialize)]
-// pub struct ErrorResponse {
-//     pub error: String,
-// }
-
-// // 假设的 DEFAULT_PAGE_SIZE 和 MAX_PAGE_SIZE 常量
-// const DEFAULT_PAGE_SIZE: u64 = 10;
-// const MAX_PAGE_SIZE: u64 = 100;
-
-// // 泛型守卫结构体
-// pub struct QueryGuard<Q>
-// where
-//     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
-// {
-//     query: Query<Q>,
-// }
-
-// impl<Q> QueryGuard<Q>
-// where
-//     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
-// {
-//     pub fn new(query: Query<Q>) -> Self {
-//         QueryGuard { query }
+// impl ParamGuard {
+//     /// 创建守卫构造器
+//     pub fn builder() -> ParamGuardBuilder {
+//         ParamGuardBuilder::new()
 //     }
 // }
 
-// impl<Q> Guard for QueryGuard<Q>
-// where
-//     Q: serde::Deserialize<'static> + std::fmt::Debug + Validate,
-// {
+// impl Guard for ParamGuard {
 //     fn check(&self, ctx: &GuardContext<'_>) -> bool {
-//         log::error("QueryGuard check called with query: {:?}", self.query);
-//         // match self.validate_query(&self.query.into_inner()) {
-//         //     Ok(_) => true,
-//         //     Err(err) => {
-//         //         ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(err))));
-//         //         false
-//         //     }
-//         // }
+//         log::error!("ParamGuard check called with query: {:?}", ctx.head());
+//         // 获取查询参数
+//         let query = ctx.head().uri.query().unwrap_or("");
+//         log::info!("query: {:?}", query);
+//         let mut params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
+//             .into_owned()
+//             .collect();
+//         log::info!("Parsed parameters: {:?}", params);
+//         // 如果当前传入的参数在校验器中不存在，则返回错误响应
+//         // 检查是否存在未声明的参数
+//         for param_name in params.keys() {
+//             if !self.validators.contains_key(param_name) {
+//                 log::warn!("意外参数: {}", param_name);
+//                 ctx.req_data_mut()
+//                     .insert(Rc::new(RefCell::new(Some(AppError::Forbidden(
+//                         format!("未声明参数: {}", param_name).to_string(),
+//                     )))));
+//                 return false; // 发现未声明参数立即返回失败
+//             }
+//         }
+//         // 遍历所有校验器
+//         for (param_name, validator) in &self.validators {
+//             log::info!("Checking parameter: {}", param_name);
+//             match params.get(param_name.as_str()) {
+//                 Some(value) => {
+//                     log::info!("Found parameter: {}={}", param_name, value);
+//                     // 参数类型不对
+//                     if !validator(param_name, value) {
+//                         log::warn!("Parameter validation failed: {}={}", param_name, value);
+//                         // 先检测有没有默认值
+//                         if let Some(default_value) = self.default_values.get(param_name) {
+//                             // 将默认值添加到请求参数中
+//                             let mut uri = ctx.head().uri.clone().into_parts();
+//                             // uri.path_and_query = Some(format)
+//                             log::info!(
+//                                 "Using default value for parameter {}: {}",
+//                                 param_name,
+//                                 default_value
+//                             );
+//                             return true;
+//                         } else {
+//                             ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(
+//                                 AppError::Forbidden(
+//                                     format!("参数类型错误: {}", param_name).to_string(),
+//                                 ),
+//                             ))));
+//                             return false;
+//                         }
+//                     } else {
+//                         log::info!("Parameter validation succeeded: {}={}", param_name, value);
+//                         return true;
+//                     }
+//                 }
+//                 None => {
+//                     log::warn!("Required parameter missing: {}", param_name);
+//                     return false;
+//                 }
+//             }
+//         }
 //         true
 //     }
+
+//     // fn on_reject(
+//     //     &self,
+//     //     ctx: &ServiceRequest,
+//     // ) -> Pin<Box<dyn futures::Future<Output = Result<ServiceResponse, Error>>>> {
+//     //     let response = match &self.error_handler {
+//     //         Some(handler) => handler(),
+//     //         None => HttpResponse::BadRequest().body("Invalid parameters"),
+//     //     };
+
+//     //     Box::pin(ready(Ok(req.into_response(response))))
+//     // }
 // }
 
-// // // 验证分页参数的逻辑
-// // impl<Q, E> QueryGuard<Q, E>
-// // where
-// //     Q: serde::Deserialize<'static> + std::fmt::Debug,
-// //     E: Serialize,
-// // {
-// //     fn validate_query(&self, query: &Q) -> Result<(), AppError> {
-// //         // 这里可以根据具体的查询类型进行验证
-// //         if let Some(pagination_query) = query.downcast_ref::<PaginationQuery>() {
-// //             if pagination_query.page.is_none() || pagination_query.limit.is_none() {
-// //                 return Err(AppError::BadRequest(
-// //                     "分页参数 page 和 limit 必须提供".to_string(),
-// //                 ));
-// //             }
+// /// 守卫构造器（支持链式调用）
+// pub struct ParamGuardBuilder {
+//     validators: HashMap<String, ValidatorFn>,
+//     error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
+//     default_values: HashMap<String, String>,
+// }
 
-// //             let page = pagination_query.page.unwrap();
-// //             let limit = pagination_query.limit.unwrap();
+// impl ParamGuardBuilder {
+//     pub fn new() -> Self {
+//         Self {
+//             validators: HashMap::new(),
+//             error_handler: None,
+//             default_values: HashMap::new(),
+//         }
+//     }
 
-// //             if page < 1 {
-// //                 return Err(AppError::BadRequest(
-// //                     "分页参数 page 必须大于等于 1".to_string(),
-// //                 ));
-// //             }
+//     /// 添加参数校验规则
+//     pub fn validate<P, V>(mut self, param: P, validator: V) -> Self
+//     where
+//         P: Into<String>,
+//         V: Fn(&str, &str) -> bool + 'static + Send + Sync,
+//     {
+//         self.validators.insert(param.into(), Box::new(validator));
+//         self
+//     }
 
-// //             if limit < 1 {
-// //                 return Err(AppError::BadRequest(
-// //                     "分页参数 limit 必须大于等于 1".to_string(),
-// //                 ));
-// //             }
+//     pub fn validate_or_default<F>(mut self, param: &str, validator: F, default: &str) -> Self
+//     where
+//         F: Fn(&str, &str) -> bool + 'static + Send + Sync,
+//     {
+//         self.validators.insert(
+//             param.to_string(),
+//             Box::new(move |name, value| validator(name, value)),
+//         );
+//         self.default_values
+//             .insert(param.to_string(), default.to_string());
+//         self
+//     }
 
-// //             info!("分页参数验证成功: page = {}, limit = {}", page, limit);
-// //             Ok(())
-// //         } else {
-// //             Err(AppError::BadRequest("无效的查询参数类型".to_string()))
-// //         }
-// //     }
-// // }
+//     /// 设置自定义错误处理器
+//     pub fn error_handler<H>(mut self, handler: H) -> Self
+//     where
+//         H: Fn() -> HttpResponse + 'static + Send + Sync,
+//     {
+//         self.error_handler = Some(Box::new(handler));
+//         self
+//     }
 
-use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
-    guard::{Guard, GuardContext},
-    http::header,
-    Error, HttpMessage, HttpResponse,
-};
-use serde_json::de;
-use std::collections::HashMap;
-use std::future::{ready, Ready};
-use std::pin::Pin;
-use std::rc::Rc;
-use std::{cell::RefCell, default};
+//     /// 构建最终守卫
+//     pub fn build(self) -> ParamGuard {
+//         ParamGuard {
+//             validators: self.validators,
+//             error_handler: self.error_handler,
+//             default_values: self.default_values,
+//         }
+//     }
+// }
+
+use std::{fmt, ops, sync::Arc};
+
+use actix_utils::future::{ok, ready, Ready};
+use base64::read;
+use serde::de::DeserializeOwned;
+
+use actix_web::{dev::Payload, error::QueryPayloadError, App, Error, FromRequest, HttpRequest};
 
 use crate::AppError;
 
-// 类型别名：校验函数 (参数名, 参数值) -> bool
-type ValidatorFn = Box<dyn Fn(&str, &str) -> bool + Send + Sync>;
-
-pub struct ParamGuard {
-    validators: HashMap<String, ValidatorFn>,
-    error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
-    default_values: HashMap<String, String>,
+#[derive(Clone, Default)]
+pub struct QueryConfig {
+    #[allow(clippy::type_complexity)]
+    err_handler: Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
-impl ParamGuard {
-    /// 创建守卫构造器
-    pub fn builder() -> ParamGuardBuilder {
-        ParamGuardBuilder::new()
-    }
-}
-
-impl Guard for ParamGuard {
-    fn check(&self, ctx: &GuardContext<'_>) -> bool {
-        log::error!("ParamGuard check called with query: {:?}", ctx.head());
-        // 获取查询参数
-        let query = ctx.head().uri.query().unwrap_or("");
-        log::info!("query: {:?}", query);
-        let mut params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
-            .into_owned()
-            .collect();
-        log::info!("Parsed parameters: {:?}", params);
-        // 如果当前传入的参数在校验器中不存在，则返回错误响应
-        // 检查是否存在未声明的参数
-        for param_name in params.keys() {
-            if !self.validators.contains_key(param_name) {
-                log::warn!("意外参数: {}", param_name);
-                ctx.req_data_mut()
-                    .insert(Rc::new(RefCell::new(Some(AppError::Forbidden(
-                        format!("未声明参数: {}", param_name).to_string(),
-                    )))));
-                return false; // 发现未声明参数立即返回失败
-            }
-        }
-        // 遍历所有校验器
-        for (param_name, validator) in &self.validators {
-            log::info!("Checking parameter: {}", param_name);
-            match params.get(param_name.as_str()) {
-                Some(value) => {
-                    log::info!("Found parameter: {}={}", param_name, value);
-                    // 参数类型不对
-                    if !validator(param_name, value) {
-                        log::warn!("Parameter validation failed: {}={}", param_name, value);
-                        // 先检测有没有默认值
-                        if let Some(default_value) = self.default_values.get(param_name) {
-                            // 将默认值添加到请求参数中
-
-                            log::info!(
-                                "Using default value for parameter {}: {}",
-                                param_name,
-                                default_value
-                            );
-                            return true;
-                        } else {
-                            ctx.req_data_mut().insert(Rc::new(RefCell::new(Some(
-                                AppError::Forbidden(
-                                    format!("参数类型错误: {}", param_name).to_string(),
-                                ),
-                            ))));
-                            return false;
-                        }
-                    } else {
-                        log::info!("Parameter validation succeeded: {}={}", param_name, value);
-                        return true;
-                    }
-                }
-                None => {
-                    log::warn!("Required parameter missing: {}", param_name);
-                    return false;
-                }
-            }
-        }
-        true
-    }
-
-    // fn on_reject(
-    //     &self,
-    //     ctx: &ServiceRequest,
-    // ) -> Pin<Box<dyn futures::Future<Output = Result<ServiceResponse, Error>>>> {
-    //     let response = match &self.error_handler {
-    //         Some(handler) => handler(),
-    //         None => HttpResponse::BadRequest().body("Invalid parameters"),
-    //     };
-
-    //     Box::pin(ready(Ok(req.into_response(response))))
-    // }
-}
-
-/// 守卫构造器（支持链式调用）
-pub struct ParamGuardBuilder {
-    validators: HashMap<String, ValidatorFn>,
-    error_handler: Option<Box<dyn Fn() -> HttpResponse + Send + Sync>>,
-    default_values: HashMap<String, String>,
-}
-
-impl ParamGuardBuilder {
-    pub fn new() -> Self {
-        Self {
-            validators: HashMap::new(),
-            error_handler: None,
-            default_values: HashMap::new(),
-        }
-    }
-
-    /// 添加参数校验规则
-    pub fn validate<P, V>(mut self, param: P, validator: V) -> Self
+impl QueryConfig {
+    /// Set custom error handler
+    pub fn error_handler<F>(mut self, f: F) -> Self
     where
-        P: Into<String>,
-        V: Fn(&str, &str) -> bool + 'static + Send + Sync,
+        F: Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
-        self.validators.insert(param.into(), Box::new(validator));
+        self.err_handler = Some(Arc::new(f));
         self
     }
+}
 
-    pub fn validate_or_default<F>(mut self, param: &str, validator: F, default: &str) -> Self
-    where
-        F: Fn(&str, &str) -> bool + 'static + Send + Sync,
-    {
-        self.validators.insert(
-            param.to_string(),
-            Box::new(move |name, value| validator(name, value)),
-        );
-        self.default_values
-            .insert(param.to_string(), default.to_string());
-        self
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+
+pub struct Query<T>(pub T);
+
+impl<T> Query<T> {
+    pub fn into_inner(self) -> T {
+        self.0
     }
+}
 
-    /// 设置自定义错误处理器
-    pub fn error_handler<H>(mut self, handler: H) -> Self
-    where
-        H: Fn() -> HttpResponse + 'static + Send + Sync,
-    {
-        self.error_handler = Some(Box::new(handler));
-        self
+impl<T: DeserializeOwned> Query<T> {
+    /// Deserialize a `T` from the URL encoded query parameter string.
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::web::Query;
+    /// let numbers = Query::<HashMap<String, u32>>::from_query("one=1&two=2").unwrap();
+    /// assert_eq!(numbers.get("one"), Some(&1));
+    /// assert_eq!(numbers.get("two"), Some(&2));
+    /// assert!(numbers.get("three").is_none());
+    /// ```
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError> {
+        serde_urlencoded::from_str::<T>(query_str)
+            .map(Self)
+            .map_err(QueryPayloadError::Deserialize)
     }
+}
 
-    /// 构建最终守卫
-    pub fn build(self) -> ParamGuard {
-        ParamGuard {
-            validators: self.validators,
-            error_handler: self.error_handler,
-            default_values: self.default_values,
-        }
+impl<T> ops::Deref for Query<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> ops::DerefMut for Query<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Query<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// See [here](#Examples) for example of usage as an extractor.
+impl<T: DeserializeOwned> FromRequest for Query<T> {
+    type Error = Error;
+    type Future = Ready<Result<Self, Error>>;
+
+    #[inline]
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let error_handler = req
+            .app_data::<QueryConfig>()
+            .and_then(|c| c.err_handler.clone());
+
+        serde_urlencoded::from_str::<T>(req.query_string())
+            .map(|val| ok(Query(val)))
+            .unwrap_or_else(move |err| {
+                log::error!("Failed during Query extractor deserialization. {}", err);
+                let err = QueryPayloadError::Deserialize(err);
+
+                log::debug!(
+                    "Failed during Query extractor deserialization. \
+                     Request path: {:?}",
+                    req.path()
+                );
+
+                let err = if let Some(error_handler) = error_handler {
+                    (error_handler)(err, req)
+                } else {
+                    err.into()
+                };
+
+                let new_err =
+                    AppError::Unauthorized("当前参数错误或者当前参数不能为空".to_string());
+                ready(Err(new_err.into()))
+            })
     }
 }

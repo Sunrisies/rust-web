@@ -39,6 +39,8 @@ lazy_static = "1.5.0"
 tokio-stream = { version = "0.1.17", features = ["full"] }
 actix-web-lab = "0.24.1"
 url = "2.5.4"
+actix-utils = "3.0.1"
+serde_urlencoded = "0.7.1"
 
 [target.x86_64-unknown-linux-musl.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
