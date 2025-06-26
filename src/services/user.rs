@@ -1,4 +1,5 @@
 use crate::config::permission::{Permission, PERMISSION_MAP};
+use crate::data_processing::deep_filter_data;
 use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
@@ -13,6 +14,7 @@ use sea_orm::{
     QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
@@ -101,9 +103,14 @@ pub async fn get_all_users(
     let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
 
     log::info!("total1: {}, users1: {:?}, ", total, users);
+    // 创建HashSet
+    let sensitive_fields: HashSet<String> =
+        vec!["pass_word"].into_iter().map(String::from).collect();
+
+    let data = deep_filter_data(users, sensitive_fields);
     // 获取分页用户数据
     let response = PaginatedResponse {
-        data: users,
+        data,
         pagination: PaginationInfo {
             total,
             total_pages,
