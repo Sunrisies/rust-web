@@ -4,7 +4,6 @@ CREATE TABLE users (
     user_name VARCHAR(255) NOT NULL COMMENT '用户名',
     pass_word VARCHAR(255) NOT NULL COMMENT '密码',
     email VARCHAR(255) COMMENT '电子邮箱',
-    age INT COMMENT '年龄',
     image VARCHAR(255) COMMENT '头像图片路径',
     phone VARCHAR(20) COMMENT '手机号码',
     role VARCHAR(50) COMMENT '用户角色',

@@ -1,21 +1,11 @@
+use super::articles;
 use super::auth;
 use super::authenticator;
 use super::sse;
 use super::user;
-// use crate::common_guard::ParamGuard;
-// use crate::common_guard::QueryGuard;
 use crate::config::permission::Permission;
 use crate::utils::permission_guard::PermissionGuard;
 use actix_web::web;
-use actix_web::HttpResponse;
-// 示例接口
-async fn get_article() -> HttpResponse {
-    HttpResponse::Ok().body("文章列表")
-}
-
-async fn create_article() -> HttpResponse {
-    HttpResponse::Ok().body("创建文章")
-}
 
 pub fn config_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -40,12 +30,12 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                     .route(
                         web::get()
                             .guard(PermissionGuard::new(Permission::READ_ARTICLE))
-                            .to(get_article),
+                            .to(articles::get_article),
                     )
                     .route(
                         web::post()
                             .guard(PermissionGuard::new(Permission::WRITE_ARTICLE))
-                            .to(create_article),
+                            .to(articles::create_article),
                     ),
             )
             .service(

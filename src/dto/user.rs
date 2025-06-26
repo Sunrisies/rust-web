@@ -12,7 +12,6 @@ pub struct CreateUserRequest {
     )]
     #[serde(rename = "email")]
     pub email: String,
-    pub age: Option<i32>,
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     #[serde(rename = "pass_word")]
     pub pass_word: String,

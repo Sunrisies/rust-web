@@ -12,7 +12,6 @@ pub struct Model {
     pub user_name: String, // 用户名
     pub pass_word: String,           // 密码
     pub email: Option<String>,       // 邮箱
-    pub age: Option<i32>,            // 年龄
     pub image: Option<String>,       // 头像
     pub phone: Option<String>,       // 手机号
     pub role: Option<String>,        // 角色
