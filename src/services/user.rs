@@ -25,9 +25,10 @@ use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
 #[derive(Validate, Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)] // 拒绝未知字段
 pub struct PaginationQuery {
     #[serde(default = "default_page")]
-    #[validate(range(min = 1, message = "页码必须大于01"))]
+    #[validate(range(min = 1, message = "页码必须大于1"))]
     pub page: Option<u64>,
     // 每页数量不能超过100
     #[serde(default = "default_size")]
@@ -43,19 +44,6 @@ fn default_page() -> Option<u64> {
 fn default_size() -> Option<u64> {
     Some(DEFAULT_PAGE_SIZE)
 }
-// impl PaginationQuery {
-//     // 获取处理后的分页参数（应用默认值）
-//     pub fn get_params(&self) -> (u64, u64) {
-//         let page = self.page.unwrap_or(1);
-//         let limit = self.limit.unwrap_or(10);
-//         (page, limit)
-//     }
-
-//     // 可选：添加自定义验证逻辑（如互斥规则等）
-//     pub fn validate_input(&self) -> Result<(), validator::ValidationErrors> {
-//         self.validate()
-//     }
-// }
 
 #[derive(Serialize)]
 pub struct PaginatedResponse<T> {
@@ -84,20 +72,18 @@ pub async fn get_all_users(
     query: Query<PaginationQuery>,
 ) -> SimpleResp {
     log::error!("触发了获取用户列表的函数{:?}", query);
-    let s = query.validate();
-    log::error!("123123131{:?}", s);
     // 验证分页参数
-    // let validated_query = match query.validate() {
-    //     Ok(_) => query.into_inner(),
-    //     Err(e) => {
-    //         log::error!("分页参数验证失败: {:?}", e);
-    //         let error_response = ErrorResponse {
-    //             error: e.to_string(),
-    //         };
-    //         return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
-    //         // return HttpResponse::BadRequest().json(error_response);
-    //     }
-    // };
+    let validated_query = match query.validate() {
+        Ok(_) => query.into_inner(),
+        Err(e) => {
+            log::error!("分页参数验证失败: {:?}", e);
+            let error_response = ErrorResponse {
+                error: e.to_string(),
+            };
+            return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
+            // return HttpResponse::BadRequest().json(error_response);
+        }
+    };
     // log::error!("获取数据：{}", validated_query.page.unwrap_or(1));
     // if let Err(mut e) = query.validate_input() {
     //     // 提取所有错误提示

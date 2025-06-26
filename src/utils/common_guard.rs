@@ -329,7 +329,9 @@ use std::{fmt, ops, sync::Arc};
 
 use actix_utils::future::{ok, ready, Ready};
 use base64::read;
+use sea_orm::sqlx::query;
 use serde::de::DeserializeOwned;
+use std::collections::HashMap;
 
 use actix_web::{dev::Payload, error::QueryPayloadError, App, Error, FromRequest, HttpRequest};
 
@@ -362,7 +364,7 @@ impl<T> Query<T> {
     }
 }
 
-impl<T: DeserializeOwned> Query<T> {
+impl<T: DeserializeOwned + std::fmt::Debug> Query<T> {
     /// Deserialize a `T` from the URL encoded query parameter string.
     ///
     /// ```
@@ -399,9 +401,29 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
         self.0.fmt(f)
     }
 }
+#[derive(Debug)]
+pub enum Value {
+    String(String),
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    Vec(Vec<Value>), // 用于表示数组
+}
+use std::str::FromStr;
 
+fn parse_value(s: &str) -> Value {
+    if let Ok(b) = bool::from_str(s) {
+        Value::Boolean(b)
+    } else if let Ok(i) = i64::from_str(s) {
+        Value::Integer(i)
+    } else if let Ok(f) = f64::from_str(s) {
+        Value::Float(f)
+    } else {
+        Value::String(s.to_string())
+    }
+}
 /// See [here](#Examples) for example of usage as an extractor.
-impl<T: DeserializeOwned> FromRequest for Query<T> {
+impl<T: DeserializeOwned + std::fmt::Debug> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -411,10 +433,15 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
             .app_data::<QueryConfig>()
             .and_then(|c| c.err_handler.clone());
 
+        // 如果检测当前参数是空的话可以直接过去
+        let query = req.query_string();
+        let _params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
+            .into_owned()
+            .collect();
+
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
             .unwrap_or_else(move |err| {
-                log::error!("Failed during Query extractor deserialization. {}", err);
                 let err = QueryPayloadError::Deserialize(err);
 
                 log::debug!(
@@ -422,12 +449,6 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
                      Request path: {:?}",
                     req.path()
                 );
-
-                let err = if let Some(error_handler) = error_handler {
-                    (error_handler)(err, req)
-                } else {
-                    err.into()
-                };
 
                 let new_err =
                     AppError::Unauthorized("当前参数错误或者当前参数不能为空".to_string());
