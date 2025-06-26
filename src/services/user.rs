@@ -4,7 +4,7 @@ use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
-use crate::utils::common_guard::Query;
+use crate::utils::query::Query;
 use crate::utils::sse::SseNotifier;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
@@ -153,7 +153,6 @@ pub async fn update_user(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
     user_data: web::Json<UpdateUserRequest>,
-    // sse_notifier: web::Data<SseNotifier>, // 添加 SSE 通知器
     notifier: web::Data<SseNotifier>,
 ) -> Result<HttpResponse, AppError> {
     // 验证UUID格式
