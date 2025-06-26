@@ -9,23 +9,16 @@ use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait,
-    ColumnTrait,
-    DatabaseConnection,
-    EntityTrait,
-    PaginatorTrait,
-    QueryFilter,
-    // QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::fmt::Debug;
 use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
 #[derive(Validate, Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)] // 拒绝未知字段
 pub struct PaginationQuery {
     #[serde(default = "default_page")]
     #[validate(range(min = 1, message = "页码必须大于1"))]
@@ -71,7 +64,6 @@ pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
     query: Query<PaginationQuery>,
 ) -> SimpleResp {
-    log::error!("触发了获取用户列表的函数{:?}", query);
     // 验证分页参数
     let validated_query = match query.validate() {
         Ok(_) => query.into_inner(),
@@ -81,85 +73,48 @@ pub async fn get_all_users(
                 error: e.to_string(),
             };
             return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
-            // return HttpResponse::BadRequest().json(error_response);
         }
     };
-    // log::error!("获取数据：{}", validated_query.page.unwrap_or(1));
-    // if let Err(mut e) = query.validate_input() {
-    //     // 提取所有错误提示
-    //     let errors_str = e.errors_mut();
-    //     log::error!("分页参数验证失败: {:?}", errors_str);
-    //     let error_response = ErrorResponse {
-    //         error: e.to_string(),
-    //     };
-    //     // let errors_str = e
-    //     //     .iter()
-    //     //     .map(|e| e.to_string())
-    //     //     .collect::<Vec<String>>()
-    //     //     .join(", ");
+    let page = validated_query.page.unwrap_or(1);
+    let limit = validated_query.limit.unwrap_or(DEFAULT_PAGE_SIZE);
 
-    //     return Resp::ok("分页参数验证失败", &error_response.error).to_json_result();
-    //     // return Resp::err(AppError::BadRequest(error_response.error)).to_json_result();
-    // }
-    log::error!("触发了获取用户列表的函数");
-    // let (page, limit) = query.get_params();
-
-    // // 验证分页参数
-    // let mut query_with_defaults = PaginationQuery {
-    //     page: Some(page),
-    //     limit: Some(limit),
-    // };
-    // if let Err(validation_errors) = query_with_defaults.validate() {
-    //     log::error!("验证失败: {:?}", validation_errors);
-    //     let error_response = ErrorResponse {
-    //         error: validation_errors.to_string(),
-    //     };
-    //     return Resp::ok(error_response).to_json_result();
-    // }
     // 限制每页数量的范围
-    // let limit = if limit == 0 {
-    //     DEFAULT_PAGE_SIZE
-    // } else if limit > MAX_PAGE_SIZE {
-    //     MAX_PAGE_SIZE
-    // } else {
-    //     limit
-    // };
+    let limit = if limit == 0 {
+        DEFAULT_PAGE_SIZE
+    } else if limit > MAX_PAGE_SIZE {
+        MAX_PAGE_SIZE
+    } else {
+        limit
+    };
+    let offset = (page - 1) * limit;
 
-    // // 计算偏移量
-    // let offset = (page - 1) * limit;
+    // 获取总数和分页数据
+    let (total, users) = tokio::try_join!(
+        UserEntity::find().count(db.as_ref()),
+        UserEntity::find()
+            .order_by_desc(user::Column::Id)
+            .offset(Some(offset))
+            .limit(Some(limit))
+            .all(db.as_ref())
+    )
+    .map_err(|e| AppError::InternalServerError(format!("数据库操作失败: {}", e)))?;
+    let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
 
-    // // 获取用户总数
-    // let total = UserEntity::find()
-    //     .count(db.as_ref())
-    //     .await
-    //     .map_err(|e| AppError::InternalServerError(format!("获取用户总数失败: {}", e)))?;
+    log::info!("total1: {}, users1: {:?}, ", total, users);
+    // 获取分页用户数据
+    let response = PaginatedResponse {
+        data: users,
+        pagination: PaginationInfo {
+            total,
+            total_pages,
+            current_page: page,
+            limit,
+            has_next: page < total_pages,
+            has_previous: page > 1,
+        },
+    };
 
-    // // 计算总页数
-    // let total_pages = (total as f64 / limit as f64).ceil() as u64;
-
-    // // 获取分页用户数据
-    // let users = UserEntity::find()
-    //     .order_by_asc(user::Column::Id)
-    //     .offset(Some(offset))
-    //     .limit(Some(limit))
-    //     .all(db.as_ref())
-    //     .await
-    //     .map_err(|e| AppError::InternalServerError(format!("获取用户列表失败: {}", e)))?;
-
-    // let response = PaginatedResponse {
-    //     data: users,
-    //     pagination: PaginationInfo {
-    //         total,
-    //         total_pages,
-    //         current_page: page,
-    //         limit,
-    //         has_next: page < total_pages,
-    //         has_previous: page > 1,
-    //     },
-    // };
-
-    Resp::ok("response", "获取用户列表成功").to_json_result()
-    // Ok(HttpResponse::Ok().json(response))
+    Resp::ok(response, "获取用户列表成功").to_json_result()
 }
 
 // 通过ID获取用户
