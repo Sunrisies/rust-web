@@ -1,6 +1,7 @@
 use super::articles;
 use super::auth;
 use super::authenticator;
+use super::categories;
 use super::sse;
 use super::user;
 use crate::config::permission::Permission;
@@ -45,6 +46,9 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                         "/generate",
                         web::get().to(authenticator::generate_2fa_secret),
                     ),
+            )
+            .service(
+                web::scope("/categories").route("", web::post().to(categories::create_category)),
             ),
     );
 }
