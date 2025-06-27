@@ -35,7 +35,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(
                 web::JsonConfig::default()
                     .limit(4096) // 限制请求体大小
-                    .error_handler(|err, _req| AppError::from(err).into()),
+                    .error_handler(|err, _req| {
+                        log::error!("JSON 解析错误: {}0-----", err);
+                        AppError::from(err).into()
+                    }),
             )
             .app_data(notifier.clone())
             .app_data(app_data.clone())
