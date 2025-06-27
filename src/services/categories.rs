@@ -1,10 +1,10 @@
+use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::categories::{self};
 use crate::models::sea_orm_active_enums::Type;
-use actix_web::{web, HttpResponse};
+use actix_web::web;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryRequest {
     name: String,
@@ -14,14 +14,14 @@ pub struct CategoryRequest {
 pub async fn create_category(
     db: web::Data<DatabaseConnection>,
     web::Json(payload): web::Json<CategoryRequest>,
-) -> HttpResponse {
+) -> SimpleResp {
     log::info!("create_category payload: {:?}", payload);
     let category = categories::Entity::find()
         .filter(categories::Column::Name.eq(payload.name.clone()))
         .one(db.get_ref())
         .await;
     if let Ok(Some(_)) = category {
-        return HttpResponse::BadRequest().body("分类名称已存在");
+        return Resp::ok("", "分类名称已存在").to_json_result();
     }
     let category = categories::ActiveModel {
         name: Set(payload.name),
@@ -32,7 +32,7 @@ pub async fn create_category(
     };
 
     match category.insert(db.get_ref()).await {
-        Ok(_) => HttpResponse::Ok().body("创建分类成功"),
-        Err(e) => HttpResponse::InternalServerError().body(format!("创建分类失败: {:?}", e)),
+        Ok(_) => Resp::ok("", "创建分类成功").to_json_result(),
+        Err(e) => Resp::ok("", "创建分类失败").to_json_result(),
     }
 }
