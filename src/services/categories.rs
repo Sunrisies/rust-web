@@ -7,6 +7,7 @@ use actix_web::web;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 impl EnumDeserialize for Type {
     fn from_str(s: &str) -> Result<Self, ()> {
@@ -21,13 +22,27 @@ impl EnumDeserialize for Type {
         vec!["Article", "Library"]
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CategoryRequest {
     name: String,
     #[serde(deserialize_with = "deserialize_enum")]
     r#type: Type,
 }
-
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SimpleRespData {
+    data: String,
+    message: String,
+}
+#[utoipa::path(
+    post,
+    path = "/categories",
+    request_body = CategoryRequest,
+    responses(
+        (status = 200, description = "创建分类成功", body = SimpleRespData),
+        (status = 400, description = "分类名称已存在", body = SimpleRespData),
+        (status = 500, description = "创建分类失败", body = SimpleRespData),
+    ),
+)]
 pub async fn create_category(
     db: web::Data<DatabaseConnection>,
     payload: web::Json<CategoryRequest>,

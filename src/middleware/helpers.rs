@@ -2,7 +2,8 @@ use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 
 use crate::AppError;
-#[derive(Deserialize, Serialize)]
+use utoipa::ToSchema;
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct Resp<T>
 where
     T: Serialize,

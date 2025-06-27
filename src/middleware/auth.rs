@@ -61,6 +61,7 @@ where
                 "/api/auth/permissions",
                 "/sse/stream",
                 "/api/sse/stream",
+                "/swagger-ui/",
             ];
             if public_paths.contains(&path.as_str()) {
                 let res = fut.await?;
