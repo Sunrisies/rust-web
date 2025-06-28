@@ -85,7 +85,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PermissionRequest"
+                "$ref": "#/components/schemas/PermissionDto"
               }
             }
           },
@@ -137,7 +137,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimpleRespData"
+                  "$ref": "#/components/schemas/CommonResponse_Vec_PermissionResponse"
                 }
               }
             }
@@ -167,7 +167,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimpleRespData"
+                  "$ref": "#/components/schemas/CommonResponse_UserDto"
                 }
               }
             }
@@ -177,7 +177,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimpleRespData"
+                  "$ref": "#/components/schemas/CommonResponse_Option_UserDto"
                 }
               }
             }
@@ -187,7 +187,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimpleRespData"
+                  "$ref": "#/components/schemas/CommonResponse_Option_UserDto"
                 }
               }
             }
@@ -303,12 +303,86 @@
           }
         }
       },
+      "CommonResponse_Option_UserDto": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "user_name",
+                  "pass_word"
+                ],
+                "properties": {
+                  "binding": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "image": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pass_word": {
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "phone": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "role": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "user_name": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "CommonResponse_UserDto": {
         "type": "object",
         "required": [
           "code",
-          "message",
-          "data"
+          "message"
         ],
         "properties": {
           "code": {
@@ -320,7 +394,6 @@
             "type": "object",
             "required": [
               "user_name",
-              "email",
               "pass_word"
             ],
             "properties": {
@@ -331,7 +404,10 @@
                 ]
               },
               "email": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "image": {
                 "type": [
@@ -362,6 +438,41 @@
               },
               "user_name": {
                 "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CommonResponse_Vec_PermissionResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "description"
+              ],
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -406,10 +517,25 @@
           }
         }
       },
-      "PermissionRequest": {
+      "PermissionDto": {
         "type": "object",
         "properties": {
           "permissions": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         }
@@ -455,7 +581,6 @@
         "type": "object",
         "required": [
           "user_name",
-          "email",
           "pass_word"
         ],
         "properties": {
@@ -466,7 +591,10 @@
             ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "image": {
             "type": [

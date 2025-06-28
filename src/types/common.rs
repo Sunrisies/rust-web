@@ -4,5 +4,5 @@ use utoipa::ToSchema;
 pub struct CommonResponse<T> {
     pub code: u16,
     pub message: String,
-    pub data: T,
+    pub data: Option<T>,
 }

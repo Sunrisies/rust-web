@@ -11,7 +11,7 @@ pub struct UserDto {
         email(message = "电子邮件无效")
     )]
     #[serde(rename = "email")]
-    pub email: String,
+    pub email: Option<String>,
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     #[serde(rename = "pass_word")]
     pub pass_word: String,

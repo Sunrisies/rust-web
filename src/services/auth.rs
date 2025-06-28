@@ -1,10 +1,12 @@
-use crate::dto::user::{LoginRequest, RegisterResponse};
+use crate::common::CommonResponse;
+use crate::dto::user::{LoginRequest, RegisterResponse, UserDto};
 use crate::error::error::AppError;
 use crate::jsonwebtoken::TokenClaims;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity, Model};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
+use actix_web::body::None;
 use actix_web::{web, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
@@ -150,9 +152,9 @@ pub struct SimpleRespData {
     tag = "鉴权模块",
     operation_id = "用户注册",
     responses(
-        (status = 200, description = "注册成功", body = SimpleRespData),
-        (status = 400, description = "验证错误", body = SimpleRespData),
-        (status = 409, description = "用户名已存在", body = SimpleRespData),
+        (status = 200, description = "注册成功", body = CommonResponse<UserDto>),
+        (status = 400, description = "验证错误", body = CommonResponse<Option<UserDto>>),
+        (status = 409, description = "用户名已存在", body = CommonResponse<Option<UserDto>>),
         (status = 500, description = "服务器内部错误", body = SimpleRespData),
     ),
 )]
@@ -216,7 +218,7 @@ pub async fn register(
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct PermissionRequest {
+pub struct PermissionDto {
     #[serde(default = "default_permissions")]
     permissions: String,
 }
@@ -227,7 +229,7 @@ fn default_permissions() -> String {
 #[utoipa::path(
     get,
     path = "/api/auth/permission",
-    request_body = PermissionRequest,
+    request_body = PermissionDto,
     tag = "鉴权模块",
     operation_id = "获取指定用户权限",
     responses(
@@ -236,7 +238,7 @@ fn default_permissions() -> String {
     ),
 )]
 // 解析权限ID并返回权限信息
-pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> SimpleResp {
+pub async fn get_permissions_by_id(query: web::Query<PermissionDto>) -> SimpleResp {
     info!("permission_id: {}", query.permissions);
     match query.permissions.parse::<u64>() {
         Ok(permissions_bits) => {
@@ -252,6 +254,12 @@ pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> Simp
     }
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PermissionResponse {
+    name: String,
+    description: String,
+}
+
 #[utoipa::path(
     get,
     path = "/api/auth/permissions",
@@ -259,7 +267,7 @@ pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> Simp
     tag = "鉴权模块",
     operation_id = "获取权限列表",
     responses(
-        (status = 200, description = "获取权限列表成功", body = SimpleRespData),
+        (status = 200, description = "获取权限列表成功", body = CommonResponse<Vec<PermissionResponse>>),
     ),
 )]
 pub async fn get_permissions() -> SimpleResp {
