@@ -2,6 +2,7 @@ use crate::common::CommonResponse;
 use crate::dto::user::{LoginRequest, RegisterResponse};
 use crate::error::error::AppError;
 use crate::jsonwebtoken::TokenClaims;
+use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity, Model};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
@@ -9,7 +10,7 @@ use actix_web::{web, HttpResponse, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
-use log::info;
+use log::{error, info, warn};
 use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
@@ -17,6 +18,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
+use utoipa::ToSchema;
 use validator::Validate;
 
 #[derive(Debug, Serialize)]
@@ -127,36 +129,60 @@ fn build_login_response(credentials: Model, token: String) -> CommonResponse<Log
         },
     }
 }
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SimpleRespData {
+    data: String,
+    message: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/register",
+    request_body = RegisterResponse,
+    responses(
+        (status = 200, description = "注册成功", body = SimpleRespData),
+        (status = 400, description = "验证错误", body = SimpleRespData),
+        (status = 409, description = "用户名已存在", body = SimpleRespData),
+        (status = 500, description = "服务器内部错误", body = SimpleRespData),
+    ),
+)]
 
 pub async fn register(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<RegisterResponse>,
-) -> Result<HttpResponse, AppError> {
-    user_data.validate().map_err(|e| {
+) -> SimpleResp {
+    if let Err(e) = user_data.validate() {
         info!("注册:{:?}", e); // 打印验证错误
-        AppError::DeserializeError(e.to_string())
-    })?;
+        return Resp::err(AppError::DeserializeError(e.to_string())).to_json_result();
+    }
     let user_data = user_data.into_inner(); // 提取内部数据
 
     // 检查用户名是否已存在
-    let exists = UserEntity::find()
+    match UserEntity::find()
         .filter(user::Column::UserName.eq(&user_data.user_name))
         .count(db.as_ref())
         .await
-        .map_err(|e| AppError::InternalServerError(format!("检查用户名时发生错误: {}", e)))?
-        > 0;
-
-    if exists {
-        return Err(AppError::Conflict(format!(
-            "用户名 '{}' 已存在",
-            user_data.user_name
-        )));
+    {
+        Ok(count) if count > 0 => {
+            warn!("用户名 '{}' 已存在", user_data.user_name);
+            return Resp::err(AppError::Conflict("用户名已存在".into())).to_json_result();
+        }
+        Ok(_) => {}
+        Err(e) => {
+            error!("检查用户名时发生错误: {}", e);
+            return Resp::err(AppError::InternalServerError("服务器内部错误".into()))
+                .to_json_result();
+        }
     }
 
     // 密码加密
     let hashed_password = match hash(&user_data.pass_word, DEFAULT_COST) {
         Ok(hashed) => hashed,
-        Err(_) => return Err(AppError::InternalServerError("密码加密失败".to_string())),
+        Err(e) => {
+            log::error!("密码加密失败: {}", e); // 详细错误日志记录在服务器端
+            return Resp::err(AppError::InternalServerError("密码加密失败".into()))
+                .to_json_result();
+        }
     };
 
     // 创建新用户
@@ -170,18 +196,13 @@ pub async fn register(
         ..Default::default()
     };
 
-    let created_user = new_user
-        .insert(db.as_ref())
-        .await
-        .map_err(|e| AppError::InternalServerError(format!("创建用户失败: {}", e)))?;
-
-    Ok(HttpResponse::Created().json(created_user))
-}
-
-#[derive(Serialize)]
-struct PermissionResponse {
-    data: Vec<String>,
-    code: u16,
+    match new_user.insert(db.as_ref()).await {
+        Ok(created_user) => Resp::ok(created_user, "注册成功").to_json_result(),
+        Err(e) => {
+            error!("创建用户失败: {}", e);
+            Resp::err(AppError::InternalServerError("服务器内部错误".into())).to_json_result()
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -194,11 +215,8 @@ fn default_permissions() -> String {
     "0".to_string()
 }
 // 解析权限ID并返回权限信息
-pub async fn get_permissions_by_id(
-    _db: web::Data<DatabaseConnection>,
-    query: web::Query<PermissionRequest>,
-) -> Result<HttpResponse> {
-    log::info!("permission_id: {}", query.permissions);
+pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> SimpleResp {
+    info!("permission_id: {}", query.permissions);
     match query.permissions.parse::<u64>() {
         Ok(permissions_bits) => {
             let stored_permissions =
@@ -207,25 +225,13 @@ pub async fn get_permissions_by_id(
                 .iter_names()
                 .map(|(name, _)| name.to_string())
                 .collect::<Vec<_>>();
-
-            let response = PermissionResponse {
-                data: permission_names,
-                code: 200,
-            };
-
-            Ok(HttpResponse::Ok().json(response))
+            Resp::ok(permission_names, "获取权限成功").to_json_result()
         }
-        Err(_) => {
-            let response = PermissionResponse {
-                data: vec![],
-                code: 400,
-            };
-            Ok(HttpResponse::BadRequest().json(response))
-        }
+        Err(_) => Resp::err(AppError::BadRequest("权限ID格式错误".into())).to_json_result(),
     }
 }
 
-pub async fn get_permissions() -> Result<HttpResponse, AppError> {
+pub async fn get_permissions() -> SimpleResp {
     let permission_list = PERMISSION_LIST
         .iter()
         .filter(|(name, _)| {
@@ -243,6 +249,5 @@ pub async fn get_permissions() -> Result<HttpResponse, AppError> {
             })
         })
         .collect::<Vec<_>>();
-
-    Ok(HttpResponse::Ok().json(permission_list))
+    Resp::ok(permission_list, "获取权限列表成功").to_json_result()
 }

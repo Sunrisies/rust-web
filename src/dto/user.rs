@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
-
 #[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CreateUserRequest {
     #[validate(length(min = 10, max = 100, message = "用户名长度必须在5到100之间"))]
@@ -27,7 +27,7 @@ pub struct CreateUserRequest {
     pub binding: Option<String>,
 }
 
-#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterResponse {
     #[validate(length(min = 5, max = 100, message = "用户名长度必须在5到100之间"))]
     pub user_name: String,
@@ -35,7 +35,7 @@ pub struct RegisterResponse {
     pub pass_word: String,
 }
 
-#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LoginRequest {
     #[validate(length(min = 5, max = 100, message = "用户名长度必须在5到100之间"))]
     pub user_name: String,

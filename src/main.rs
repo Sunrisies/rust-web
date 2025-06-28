@@ -1,20 +1,20 @@
 use actix_cors::Cors;
 use actix_web::{middleware::ErrorHandlers, web, App, HttpServer};
 use mysql_user_crud::{
-    config::swagger_ui::ApiDoc, config_routes, create_db_pool, log::init_logger,
-    middleware::auth::Auth, swagger_ui::write_to_file, utils::error_handler::add_error_header,
-    utils::sse::SseNotifier, AppError, Logger,
+    config_routes, create_db_pool, log::init_logger, middleware::auth::Auth,
+    swagger_ui::write_to_file, utils::error_handler::add_error_header, utils::sse::SseNotifier,
+    AppError, Logger,
 };
 use std::env;
 
-use utoipa::OpenApi;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
-    let db_pool = create_db_pool()
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    write_to_file("openapi.json");
+    let db_pool = create_db_pool().await.map_err(|e| {
+        log::error!("数据库连接失败: {}", e);
+        std::io::Error::new(std::io::ErrorKind::Other, e)
+    })?;
+    write_to_file();
     // 将数据库连接池添加到应用程序数据
     let app_data = web::Data::new(db_pool);
     let notifier = web::Data::new(SseNotifier::new());
@@ -23,8 +23,6 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "18080".to_string());
     let server_addr = format!("{}:{}", host, port);
     log::info!("当前服务成功启动，监听地址为 http://{}", server_addr);
-    // 创建 OpenAPI 文档
-    let openapi = ApiDoc::openapi();
     // 启动 HTTP 服务器
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -38,14 +36,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(
                 web::JsonConfig::default()
                     .limit(4096) // 限制请求体大小
-                    .error_handler(|err, _req| {
-                        log::error!("JSON 解析错误: {}0-----", err);
-                        AppError::from(err).into()
-                    }),
+                    .error_handler(|err, _req| AppError::from(err).into()),
             )
             .app_data(notifier.clone())
             .app_data(app_data.clone())
-            // .wrap(ResponseMiddleware)
             .wrap(Logger)
             .wrap(Auth)
             .wrap(actix_web::middleware::Logger::default())

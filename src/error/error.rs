@@ -20,7 +20,7 @@ pub enum AppError {
     #[error("请求体解析错误: {0}")]
     DeserializeError(String),
     // 状态码409
-    #[error("冲突发生: {0}")]
+    #[error("数据存在: {0}")]
     Conflict(String),
     // 状态码403
     #[error("禁止访问: {0}")]
