@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
-#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize)]
-pub struct CreateUserRequest {
+#[derive(Validate, Debug, Default, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UserDto {
     #[validate(length(min = 10, max = 100, message = "用户名长度必须在5到100之间"))]
     #[serde(rename = "user_name")]
     pub user_name: String,

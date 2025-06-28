@@ -35,8 +35,10 @@ pub struct SimpleRespData {
 }
 #[utoipa::path(
     post,
-    path = "/categories",
+    path = "/api/categories",
     request_body = CategoryRequest,
+    tag = "分类",
+    operation_id = "创建分类",
     responses(
         (status = 200, description = "创建分类成功", body = SimpleRespData),
         (status = 400, description = "分类名称已存在", body = SimpleRespData),

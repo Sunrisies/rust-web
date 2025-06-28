@@ -2,7 +2,8 @@ use super::json_error::parse_json_error;
 use actix_web::{error::ResponseError, HttpResponse};
 use serde::Serialize;
 use thiserror::Error;
-#[derive(Error, Debug)]
+use utoipa::ToSchema;
+#[derive(Error, Debug, ToSchema)]
 pub enum AppError {
     // 状态码400
     #[error("缺少参数: {0}")]

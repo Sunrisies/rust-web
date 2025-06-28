@@ -1,8 +1,8 @@
 use actix_cors::Cors;
 use actix_web::{middleware::ErrorHandlers, web, App, HttpServer};
 use mysql_user_crud::{
-    config_routes, create_db_pool, log::init_logger, middleware::auth::Auth,
-    swagger_ui::write_to_file, utils::error_handler::add_error_header, utils::sse::SseNotifier,
+    api_doc::write_to_file, config_routes, create_db_pool, log::init_logger,
+    middleware::auth::Auth, utils::error_handler::add_error_header, utils::sse::SseNotifier,
     AppError, Logger,
 };
 use std::env;

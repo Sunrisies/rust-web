@@ -1,4 +1,3 @@
-use crate::common::CommonResponse;
 use crate::dto::user::{LoginRequest, RegisterResponse};
 use crate::error::error::AppError;
 use crate::jsonwebtoken::TokenClaims;
@@ -6,7 +5,7 @@ use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity, Model};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
-use actix_web::{web, HttpResponse, Result};
+use actix_web::{web, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
@@ -44,10 +43,24 @@ pub struct LoginData {
     pub access_token: String,
     pub expires_in: u64,
 }
+
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    request_body = LoginRequest,
+    tag = "鉴权模块",
+    operation_id = "用户登录",
+    responses(
+        (status = 200, description = "登录成功", body = SimpleRespData),
+        (status = 400, description = "验证错误", body = SimpleRespData),
+        (status = 404, description = "用户名不存在", body = SimpleRespData),
+        (status = 500, description = "服务器内部错误", body = SimpleRespData),
+    ),
+)]
 pub async fn login(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<LoginRequest>,
-) -> Result<HttpResponse, AppError> {
+) -> SimpleResp {
     user_data.validate().map_err(|e| {
         info!("{:?}", e); // 打印验证错误
         AppError::DeserializeError(e.to_string())
@@ -67,7 +80,7 @@ pub async fn login(
 
     // 验证密码（使用 bcrypt 验证加密后的密码）
     if let Err(_) = verify(&user_data.pass_word, &credentials.pass_word) {
-        return Err(AppError::Unauthorized("用户名或密码错误".into()));
+        return Resp::err(AppError::Unauthorized("用户名或密码错误".into())).to_json_result();
     }
 
     // 生成JWT令牌
@@ -76,8 +89,7 @@ pub async fn login(
         "secret_key",
         3600, // 可配置的过期时间
     )?;
-    // 如果验证通过，返回成功响应
-    Ok(HttpResponse::Ok().json(build_login_response(credentials, token)))
+    Resp::ok(build_login_response(credentials, token), "登录成功").to_json_result()
 }
 
 // 提取JWT生成逻辑
@@ -106,7 +118,7 @@ fn generate_jwt(credentials: &Model, secret: &str, expires_in: u64) -> Result<St
     })
 }
 
-fn build_login_response(credentials: Model, token: String) -> CommonResponse<LoginData> {
+fn build_login_response(credentials: Model, token: String) -> LoginData {
     let user_info = UserInfo {
         id: credentials.id,
         uuid: credentials.uuid,
@@ -119,14 +131,10 @@ fn build_login_response(credentials: Model, token: String) -> CommonResponse<Log
         permissions: credentials.permissions.clone(),
     };
 
-    CommonResponse {
-        code: 200,
-        message: "登录成功".to_string(),
-        data: LoginData {
-            user: user_info,
-            access_token: token,
-            expires_in: 3600,
-        },
+    LoginData {
+        user: user_info,
+        access_token: token,
+        expires_in: 3600,
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -137,8 +145,10 @@ pub struct SimpleRespData {
 
 #[utoipa::path(
     post,
-    path = "/register",
+    path = "/api/auth/register",
     request_body = RegisterResponse,
+    tag = "鉴权模块",
+    operation_id = "用户注册",
     responses(
         (status = 200, description = "注册成功", body = SimpleRespData),
         (status = 400, description = "验证错误", body = SimpleRespData),
@@ -205,7 +215,7 @@ pub async fn register(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct PermissionRequest {
     #[serde(default = "default_permissions")]
     permissions: String,
@@ -214,6 +224,17 @@ pub struct PermissionRequest {
 fn default_permissions() -> String {
     "0".to_string()
 }
+#[utoipa::path(
+    get,
+    path = "/api/auth/permission",
+    request_body = PermissionRequest,
+    tag = "鉴权模块",
+    operation_id = "获取指定用户权限",
+    responses(
+        (status = 200, description = "获取权限成功", body = SimpleRespData),
+        (status = 400, description = "权限ID格式错误", body = SimpleRespData),
+    ),
+)]
 // 解析权限ID并返回权限信息
 pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> SimpleResp {
     info!("permission_id: {}", query.permissions);
@@ -231,6 +252,16 @@ pub async fn get_permissions_by_id(query: web::Query<PermissionRequest>) -> Simp
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/auth/permissions",
+    request_body = (),
+    tag = "鉴权模块",
+    operation_id = "获取权限列表",
+    responses(
+        (status = 200, description = "获取权限列表成功", body = SimpleRespData),
+    ),
+)]
 pub async fn get_permissions() -> SimpleResp {
     let permission_list = PERMISSION_LIST
         .iter()

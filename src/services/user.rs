@@ -1,10 +1,11 @@
+use crate::common::CommonResponse;
 use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::data_processing::deep_filter_data;
-use crate::dto::user::UpdateUserRequest;
+use crate::dto::user::{UpdateUserRequest, UserDto};
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
-use crate::utils::query::Query;
+use crate::utils::query_parameter::Query;
 use crate::utils::sse::SseNotifier;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
@@ -16,11 +17,13 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::Debug;
+use utoipa::ToSchema;
 use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
+
 const DEFAULT_PAGE_SIZE: u64 = 10;
 const MAX_PAGE_SIZE: u64 = 100;
-#[derive(Validate, Debug, Clone, Serialize, Deserialize)]
+#[derive(Validate, Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PaginationQuery {
     #[serde(default = "default_page")]
     #[validate(range(min = 1, message = "页码必须大于1"))]
@@ -61,6 +64,16 @@ struct ErrorResponse {
     error: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/users",
+    request_body = PaginationQuery,
+    tag = "用户模块",
+    operation_id = "获取用户列表",
+    responses(
+        (status = 200, description = "获取用户列表成功", body = CommonResponse<UserDto>),
+    ),
+)]
 // 获取用户列表（带分页）
 pub async fn get_all_users(
     db: web::Data<DatabaseConnection>,
@@ -124,6 +137,16 @@ pub async fn get_all_users(
     Resp::ok(response, "获取用户列表成功").to_json_result()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/users/{uuid}",
+    request_body = String,
+    tag = "用户模块",
+    operation_id = "获取指定用户信息",
+    responses(
+        (status = 200, description = "获取用户信息成功", body = CommonResponse<UserDto>),
+    ),
+)]
 // 通过ID获取用户
 pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
@@ -148,6 +171,23 @@ pub async fn get_user_by_uuid(
     }
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/users/{uuid}",
+    request_body = UserDto,
+    params(
+        ("uuid" = String, Path, description = "用户的 UUID")
+    ),
+    responses(
+        (status = 200, description = "用户信息更新成功", body = UserDto),
+        (status = 400, description = "请求参数错误", body = AppError),
+        (status = 404, description = "用户不存在", body = AppError),
+        (status = 409, description = "用户名已存在", body = AppError),
+        (status = 500, description = "服务器内部错误", body = AppError)
+    ),
+    security(),
+    tag = "Users"
+)]
 // 更新用户信息
 pub async fn update_user(
     db: web::Data<DatabaseConnection>,
@@ -242,6 +282,22 @@ pub async fn update_user(
     notifier.notify(&notification.to_string());
     Ok(HttpResponse::Ok().json(updated_user))
 }
+
+#[utoipa::path(
+    delete,
+    path = "/api/users/{uuid}",
+    params(
+        ("uuid" = String, Path, description = "用户的 UUID")
+    ),
+    responses(
+        (status = 200, description = "用户删除成功", body = UserDto),
+        (status = 400, description = "请求参数错误", body = AppError),
+        (status = 404, description = "用户不存在", body = AppError),
+        (status = 500, description = "服务器内部错误", body = AppError)
+    ),
+    security(),
+    tag = "Users"
+)]
 
 // 删除用户
 pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<String>) -> SimpleResp {

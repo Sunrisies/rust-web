@@ -1,29 +1,31 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "mysql_user_crud",
-    "description": "A RESTful CRUD API for user management with MySQL",
+    "title": "Rust Web API",
+    "description": "一个简单的Rust web API",
+    "termsOfService": "https://www.rust-web-api.com/terms",
     "contact": {
-      "name": "Your Name",
-      "email": "your.email@example.com"
+      "name": "Sunrisies",
+      "url": "https://github.com/Sunrisies/rust-web",
+      "email": "3266420686@qq.com"
     },
     "license": {
       "name": ""
     },
-    "version": "0.1.0"
+    "version": "1.0"
   },
   "paths": {
-    "/categories": {
+    "/api/auth/login": {
       "post": {
         "tags": [
-          "categories"
+          "鉴权模块"
         ],
-        "operationId": "create_category",
+        "operationId": "用户登录",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CategoryRequest"
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           },
@@ -31,7 +33,7 @@
         },
         "responses": {
           "200": {
-            "description": "创建分类成功",
+            "description": "登录成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -41,7 +43,17 @@
             }
           },
           "400": {
-            "description": "分类名称已存在",
+            "description": "验证错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "用户名不存在",
             "content": {
               "application/json": {
                 "schema": {
@@ -51,7 +63,7 @@
             }
           },
           "500": {
-            "description": "创建分类失败",
+            "description": "服务器内部错误",
             "content": {
               "application/json": {
                 "schema": {
@@ -63,12 +75,82 @@
         }
       }
     },
-    "/register": {
+    "/api/auth/permission": {
+      "get": {
+        "tags": [
+          "鉴权模块"
+        ],
+        "operationId": "获取指定用户权限",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "获取权限成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "权限ID格式错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/permissions": {
+      "get": {
+        "tags": [
+          "鉴权模块"
+        ],
+        "operationId": "获取权限列表",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "default": null
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "获取权限列表成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
       "post": {
         "tags": [
-          "auth"
+          "鉴权模块"
         ],
-        "operationId": "register",
+        "operationId": "用户注册",
         "requestBody": {
           "content": {
             "application/json": {
@@ -122,6 +204,86 @@
           }
         }
       }
+    },
+    "/api/categories": {
+      "post": {
+        "tags": [
+          "分类"
+        ],
+        "operationId": "创建分类",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "创建分类成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "分类名称已存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "创建分类失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleRespData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "用户模块"
+        ],
+        "operationId": "获取用户列表",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaginationQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "获取用户列表成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_UserDto"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -138,6 +300,117 @@
           },
           "type": {
             "$ref": "#/components/schemas/Type"
+          }
+        }
+      },
+      "CommonResponse_UserDto": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "user_name",
+              "email",
+              "pass_word"
+            ],
+            "properties": {
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "email": {
+                "type": "string"
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pass_word": {
+                "type": "string"
+              },
+              "permissions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "user_name": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "user_name",
+          "pass_word"
+        ],
+        "properties": {
+          "pass_word": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          }
+        }
+      },
+      "PaginationQuery": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PermissionRequest": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "string"
           }
         }
       },
@@ -177,6 +450,55 @@
           "Article",
           "Library"
         ]
+      },
+      "UserDto": {
+        "type": "object",
+        "required": [
+          "user_name",
+          "email",
+          "pass_word"
+        ],
+        "properties": {
+          "binding": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pass_word": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_name": {
+            "type": "string"
+          }
+        }
       }
     }
   }
