@@ -1,28 +1,26 @@
 use serde_json::Value;
 use std::collections::HashSet;
 
-pub fn deep_filter_data<T, E>(data: Vec<T>, exclude: E) -> Vec<Value>
+pub fn deep_filter_data<T>(data: Vec<T>, exclude: Vec<&str>) -> Vec<Value>
 where
     T: Into<Value> + TryFrom<Value>,
-    E: Into<HashSet<String>>,
 {
-    let exclude_fields = exclude.into();
-
     data.into_iter()
         .map(|item| {
             // 将输入类型转换为 Value
             let value: Value = item.into();
             // 过滤处理
-            filter_value(value, &exclude_fields)
+            filter_value(value, exclude.clone())
         })
         .collect()
 }
 
-pub fn filter_value(value: Value, exclude: &HashSet<String>) -> Value {
+pub fn filter_value(value: Value, exclude: Vec<&str>) -> Value {
+    let sensitive_fields: HashSet<String> = exclude.into_iter().map(String::from).collect();
     match value {
         Value::Object(mut map) => {
             // 过滤当前层
-            for field in exclude {
+            for field in &sensitive_fields {
                 log::error!("exclude field: {}", field);
                 map.remove(field);
             }
@@ -34,9 +32,11 @@ pub fn filter_value(value: Value, exclude: &HashSet<String>) -> Value {
             log::error!("map: {:?}", map);
             Value::Object(map)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.into_iter().map(|v| filter_value(v, exclude)).collect())
-        }
+        Value::Array(arr) => Value::Array(
+            arr.into_iter()
+                .map(|v| filter_value(v, sensitive_fields.iter().map(|s| s.as_str()).collect()))
+                .collect(),
+        ),
         _ => value,
     }
 }

@@ -7,7 +7,7 @@ use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
 use crate::utils::query_parameter::Query;
 use crate::utils::sse::SseNotifier;
-use actix_web::{web, HttpResponse, Result};
+use actix_web::web;
 use chrono::Utc;
 use log::{error, info, warn};
 use sea_orm::ActiveValue::Set;
@@ -126,12 +126,8 @@ pub async fn get_all_users(
     .map_err(|e| AppError::InternalServerError(format!("数据库操作失败: {}", e)))?;
     let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
 
-    log::info!("total1: {}, users1: {:?}, ", total, users);
-    // 创建HashSet
-    let sensitive_fields: HashSet<String> =
-        vec!["pass_word"].into_iter().map(String::from).collect();
-
-    let data = deep_filter_data(users, sensitive_fields);
+    info!("total1: {}, users1: {:?}, ", total, users);
+    let data = deep_filter_data(users, vec!["pass_word"]);
     // 获取分页用户数据
     let response = PaginatedResponse {
         data,
@@ -156,6 +152,7 @@ pub async fn get_all_users(
     operation_id = "获取指定用户信息",
     responses(
         (status = 200, description = "获取用户信息成功", body = CommonResponse<Users>),
+        (status = 404, description = "用户不存在", body = CommonResponse<Option<Users>>)
     ),
 )]
 // 通过uuID获取用户
@@ -172,16 +169,13 @@ pub async fn get_user_by_uuid(
         .one(db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("获取用户信息失败: {}", e); // 记录错误日志
+            error!("获取用户信息失败: {}", e); // 记录错误日志
             AppError::InternalServerError("获取用户信息失败".to_string())
         })?;
 
     match user {
         Some(user) => {
-            let sensitive_fields: HashSet<String> =
-                vec!["pass_word"].into_iter().map(String::from).collect();
-
-            let data = filter_value(user.into(), &sensitive_fields);
+            let data = filter_value(user.into(), vec!["pass_word"]);
             Resp::ok(data, "获取用户信息成功").to_json_result()
         }
         None => {
@@ -199,7 +193,7 @@ pub async fn get_user_by_uuid(
         ("uuid" = String, Path, description = "用户的 UUID")
     ),
     responses(
-        (status = 200, description = "用户信息更新成功", body = UserDto),
+        (status = 200, description = "用户信息更新成功", body = CommonResponse<Users>),
         (status = 400, description = "请求参数错误", body = AppError),
         (status = 404, description = "用户不存在", body = AppError),
         (status = 409, description = "用户名已存在", body = AppError),
@@ -214,7 +208,7 @@ pub async fn update_user(
     uuid: web::Path<String>,
     user_data: web::Json<UpdateUserRequest>,
     notifier: web::Data<SseNotifier>,
-) -> Result<HttpResponse, AppError> {
+) -> SimpleResp {
     // 验证UUID格式
     let uuid =
         Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
@@ -296,7 +290,9 @@ pub async fn update_user(
     });
 
     notifier.notify(&notification.to_string());
-    Ok(HttpResponse::Ok().json(updated_user))
+
+    let data = filter_value(updated_user.into(), vec!["pass_word"]);
+    Resp::ok(data, "修改用户信息成功").to_json_result()
 }
 
 #[utoipa::path(
@@ -319,7 +315,7 @@ pub async fn update_user(
 
 // 删除用户
 pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<String>) -> SimpleResp {
-    log::info!("删除用户请求: {}", uuid); // 改为info级别
+    info!("删除用户请求: {}", uuid); // 改为info级别
 
     // 使用uuid库验证UUID格式
     let uuid =
@@ -328,14 +324,14 @@ pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<Stri
     let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid.to_string())
         .await
         .map_err(|e| {
-            log::error!("删除用户时数据库错误: {}", e); // 记录详细错误日志
+            error!("删除用户时数据库错误: {}", e); // 记录详细错误日志
             AppError::InternalServerError("删除用户失败".to_string()) // 对外暴露简略信息
         })?;
 
     if delete_result.rows_affected == 0 {
         Err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid)))
     } else {
-        log::info!("成功删除用户: {}", uuid); // 记录成功操作
+        info!("成功删除用户: {}", uuid); // 记录成功操作
         Resp::ok("", &format!("用户 {} 已删除", uuid).to_string()).to_json_result()
     }
 }
