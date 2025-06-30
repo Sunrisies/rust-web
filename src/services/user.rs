@@ -159,18 +159,28 @@ pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
 ) -> SimpleResp {
-    // 验证UUID格式
-    let uuid =
-        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
+    let uuid_result = Uuid::parse_str(&uuid);
+    let uuid = match uuid_result {
+        Ok(u) => u,
+        Err(_) => {
+            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
+                .to_json_result();
+        }
+    };
 
-    // 查询用户
-    let user = UserEntity::find_by_uuid(&uuid.to_string())
+    let user = match UserEntity::find_by_uuid(&uuid.to_string())
         .one(db.as_ref())
         .await
-        .map_err(|e| {
+    {
+        Ok(u) => u,
+        Err(e) => {
             error!("获取用户信息失败: {}", e); // 记录错误日志
-            AppError::InternalServerError("获取用户信息失败".to_string())
-        })?;
+            return Resp::err(AppError::InternalServerError(
+                "获取用户信息失败".to_string(),
+            ))
+            .to_json_result();
+        }
+    };
 
     match user {
         Some(user) => {
@@ -210,14 +220,28 @@ pub async fn update_user(
     notifier: web::Data<SseNotifier>,
 ) -> SimpleResp {
     // 验证UUID格式
-    let uuid =
-        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
+    let uuid_result = Uuid::parse_str(&uuid);
+    let uuid = match uuid_result {
+        Ok(u) => u,
+        Err(_) => {
+            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
+                .to_json_result();
+        }
+    };
 
-    // 2. 获取现有用户
-    let existing_user = UserEntity::find_by_uuid(&uuid.to_string())
+    let existing_user = match UserEntity::find_by_uuid(&uuid.to_string())
         .one(db.as_ref())
         .await
-        .map_err(|e| AppError::InternalServerError(format!("查询用户失败: {}", e)))?;
+    {
+        Ok(u) => u,
+        Err(e) => {
+            error!("获取用户信息失败: {}", e); // 记录错误日志
+            return Resp::err(AppError::InternalServerError(
+                "获取用户信息失败".to_string(),
+            ))
+            .to_json_result();
+        }
+    };
 
     let existing_user =
         existing_user.ok_or_else(|| AppError::NotFound(format!("ID为{}的用户不存在", uuid)))?;
@@ -318,15 +342,23 @@ pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<Stri
     info!("删除用户请求: {}", uuid); // 改为info级别
 
     // 使用uuid库验证UUID格式
-    let uuid =
-        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
+    let uuid_result = Uuid::parse_str(&uuid);
+    let uuid = match uuid_result {
+        Ok(u) => u,
+        Err(_) => {
+            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
+                .to_json_result();
+        }
+    };
 
-    let delete_result = UserEntity::delete_by_uuid(db.as_ref(), &uuid.to_string())
-        .await
-        .map_err(|e| {
-            error!("删除用户时数据库错误: {}", e); // 记录详细错误日志
-            AppError::InternalServerError("删除用户失败".to_string()) // 对外暴露简略信息
-        })?;
+    let delete_result = match UserEntity::delete_by_uuid(db.as_ref(), &uuid.to_string()).await {
+        Ok(u) => u,
+        Err(e) => {
+            error!("删除用户失败: {}", e); // 记录错误日志
+            return Resp::err(AppError::InternalServerError("删除用户失败".to_string()))
+                .to_json_result();
+        }
+    };
 
     if delete_result.rows_affected == 0 {
         Resp::err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))).to_json_result()
