@@ -18,7 +18,7 @@ where
         .collect()
 }
 
-fn filter_value(value: Value, exclude: &HashSet<String>) -> Value {
+pub fn filter_value(value: Value, exclude: &HashSet<String>) -> Value {
     match value {
         Value::Object(mut map) => {
             // 过滤当前层

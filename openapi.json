@@ -307,7 +307,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_UserDto"
+                  "$ref": "#/components/schemas/CommonResponse_Users"
                 }
               }
             }
@@ -753,6 +753,87 @@
               },
               "pagination": {
                 "$ref": "#/components/schemas/PaginationInfo"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CommonResponse_Users": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "id",
+              "uuid",
+              "user_name",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_at": {
+                "type": "string"
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "permissions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "user_name": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
               }
             }
           },

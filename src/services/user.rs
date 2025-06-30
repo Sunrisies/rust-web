@@ -1,6 +1,6 @@
 use crate::common::{CommonResponse, PaginationInfo};
 use crate::config::permission::{Permission, PERMISSION_MAP};
-use crate::data_processing::deep_filter_data;
+use crate::data_processing::{deep_filter_data, filter_value};
 use crate::dto::user::{UpdateUserRequest, UserDto};
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
@@ -155,20 +155,15 @@ pub async fn get_all_users(
     tag = "用户模块",
     operation_id = "获取指定用户信息",
     responses(
-        (status = 200, description = "获取用户信息成功", body = CommonResponse<UserDto>),
+        (status = 200, description = "获取用户信息成功", body = CommonResponse<Users>),
     ),
 )]
 // 通过uuID获取用户
 pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
-) -> Result<HttpResponse, AppError> {
-    // 检验当前uuid是否为空
-    // if uuid.is_empty() || uuid.len() != 36 {
-    //     return Err(AppError::BadRequest("无效的UUID格式".to_string()));
-    // }
-    info!("获取用户信息请求: {}", uuid); // 记录请求日志
-                                         // 验证UUID格式
+) -> SimpleResp {
+    // 验证UUID格式
     let uuid =
         Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
 
@@ -182,8 +177,16 @@ pub async fn get_user_by_uuid(
         })?;
 
     match user {
-        Some(user) => Ok(HttpResponse::Ok().json(user)),
-        None => Err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))),
+        Some(user) => {
+            let sensitive_fields: HashSet<String> =
+                vec!["pass_word"].into_iter().map(String::from).collect();
+
+            let data = filter_value(user.into(), &sensitive_fields);
+            Resp::ok(data, "获取用户信息成功").to_json_result()
+        }
+        None => {
+            Resp::err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))).to_json_result()
+        }
     }
 }
 
@@ -213,15 +216,11 @@ pub async fn update_user(
     notifier: web::Data<SseNotifier>,
 ) -> Result<HttpResponse, AppError> {
     // 验证UUID格式
-    if uuid.is_empty() || uuid.len() != 36 {
-        let error_response = ErrorResponse {
-            error: "无效的UUID格式".to_string(),
-        };
-        return Ok(HttpResponse::BadRequest().json(error_response));
-    }
+    let uuid =
+        Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
 
     // 2. 获取现有用户
-    let existing_user = UserEntity::find_by_uuid(&uuid)
+    let existing_user = UserEntity::find_by_uuid(&uuid.to_string())
         .one(db.as_ref())
         .await
         .map_err(|e| AppError::InternalServerError(format!("查询用户失败: {}", e)))?;
@@ -237,7 +236,7 @@ pub async fn update_user(
     if user_active.user_name != Set(user_data.user_name.clone()) {
         let exists = UserEntity::find()
             .filter(user::Column::UserName.eq(&user_data.user_name))
-            .filter(user::Column::Uuid.ne(&*uuid))
+            .filter(user::Column::Uuid.ne(&*uuid.to_string()))
             .count(db.as_ref())
             .await
             .map_err(|e| AppError::InternalServerError(format!("用户名检查失败: {}", e)))?
