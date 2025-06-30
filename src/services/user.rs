@@ -1,4 +1,4 @@
-use crate::common::CommonResponse;
+use crate::common::{CommonResponse, PaginationInfo};
 use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::data_processing::deep_filter_data;
 use crate::dto::user::{UpdateUserRequest, UserDto};
@@ -50,18 +50,28 @@ pub struct PaginatedResponse<T> {
 }
 
 #[derive(Serialize)]
-pub struct PaginationInfo {
-    total: u64,
-    total_pages: u64,
-    current_page: u64,
-    limit: u64,
-    has_next: bool,
-    has_previous: bool,
-}
-
-#[derive(Serialize)]
 struct ErrorResponse {
     error: String,
+}
+#[derive(Serialize, ToSchema)]
+pub struct Users {
+    pub id: i32,
+    pub uuid: String,
+    pub user_name: String,
+    pub email: Option<String>,
+    pub image: Option<String>,
+    pub phone: Option<String>,
+    pub role: Option<String>,
+    pub permissions: Option<String>,
+    pub binding: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct UserResponse {
+    data: Vec<Users>,
+    pagination: PaginationInfo,
 }
 
 #[utoipa::path(
@@ -71,7 +81,7 @@ struct ErrorResponse {
     tag = "用户模块",
     operation_id = "获取用户列表",
     responses(
-        (status = 200, description = "获取用户列表成功", body = CommonResponse<UserDto>),
+        (status = 200, description = "获取用户列表成功", body = CommonResponse<UserResponse>),
     ),
 )]
 // 获取用户列表（带分页）
@@ -175,6 +185,7 @@ pub async fn get_user_by_uuid(
     put,
     path = "/api/users/{uuid}",
     request_body = UserDto,
+    operation_id = "更新用户信息",
     params(
         ("uuid" = String, Path, description = "用户的 UUID")
     ),
@@ -186,7 +197,7 @@ pub async fn get_user_by_uuid(
         (status = 500, description = "服务器内部错误", body = AppError)
     ),
     security(),
-    tag = "Users"
+    tag = "用户模块"
 )]
 // 更新用户信息
 pub async fn update_user(
@@ -296,7 +307,9 @@ pub async fn update_user(
         (status = 500, description = "服务器内部错误", body = AppError)
     ),
     security(),
-    tag = "Users"
+    tag = "用户模块",
+    operation_id = "删除用户",
+
 )]
 
 // 删除用户

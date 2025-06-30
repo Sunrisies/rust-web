@@ -21,17 +21,20 @@ use utoipa::OpenApi;
     ),
     paths(
         // 分类模块
-        categories::create_category,
+        categories::create_category, // 创建分类
 
         // 权限模块的
-        auth::register,
-        auth::get_permissions,
-        auth::login,
-        auth::get_permissions_by_id,
+        auth::register, // 注册
+        auth::get_permissions, // 获取权限列表
+        auth::login, // 登录
+        auth::get_permissions_by_id, // 根据ID获取权限
 
 
         // 用户模块
-        user::get_all_users
+        user::get_all_users, // 获取全部用户
+        user::get_user_by_uuid, // 根据UUID获取用户信息
+        user::delete_user,  // 删除用户
+        user::update_user, // 更新用户信息
     )
 )]
 pub struct ApiDoc;

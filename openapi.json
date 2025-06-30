@@ -277,17 +277,297 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_UserDto"
+                  "$ref": "#/components/schemas/CommonResponse_UserResponse"
                 }
               }
             }
           }
         }
       }
+    },
+    "/api/users/{uuid}": {
+      "get": {
+        "tags": [
+          "用户模块"
+        ],
+        "operationId": "获取指定用户信息",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "获取用户信息成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResponse_UserDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "用户模块"
+        ],
+        "operationId": "更新用户信息",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "description": "用户的 UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "用户信息更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "用户名已存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "tags": [
+          "用户模块"
+        ],
+        "operationId": "删除用户",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "description": "用户的 UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器内部错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
     }
   },
   "components": {
     "schemas": {
+      "AppError": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "BadRequest"
+            ],
+            "properties": {
+              "BadRequest": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "NotFound"
+            ],
+            "properties": {
+              "NotFound": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Unauthorized"
+            ],
+            "properties": {
+              "Unauthorized": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "DeserializeError"
+            ],
+            "properties": {
+              "DeserializeError": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Conflict"
+            ],
+            "properties": {
+              "Conflict": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "Forbidden"
+            ],
+            "properties": {
+              "Forbidden": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "InternalServerError"
+            ],
+            "properties": {
+              "InternalServerError": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "string",
+            "enum": [
+              "InvalidTokenFormat"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "TokenNotFound"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "PermissionsEmpty"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "DatabaseError"
+            ],
+            "properties": {
+              "DatabaseError": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
       "CategoryRequest": {
         "type": "object",
         "required": [
@@ -446,6 +726,41 @@
           }
         }
       },
+      "CommonResponse_UserResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "data",
+              "pagination"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Users"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/PaginationInfo"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "CommonResponse_Vec_PermissionResponse": {
         "type": "object",
         "required": [
@@ -493,6 +808,45 @@
           },
           "user_name": {
             "type": "string"
+          }
+        }
+      },
+      "PaginationInfo": {
+        "type": "object",
+        "required": [
+          "total",
+          "total_pages",
+          "current_page",
+          "limit",
+          "has_next",
+          "has_previous"
+        ],
+        "properties": {
+          "current_page": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "has_next": {
+            "type": "boolean"
+          },
+          "has_previous": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -624,6 +978,88 @@
             ]
           },
           "user_name": {
+            "type": "string"
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Users"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
+          }
+        }
+      },
+      "Users": {
+        "type": "object",
+        "required": [
+          "id",
+          "uuid",
+          "user_name",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "binding": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "uuid": {
             "type": "string"
           }
         }

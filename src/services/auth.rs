@@ -6,16 +6,14 @@ use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity, Model};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
-use actix_web::body::None;
 use actix_web::{web, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use log::{error, info, warn};
-use sea_orm::entity::prelude::*;
-use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    entity::prelude::*, ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection,
+    EntityTrait, PaginatorTrait, QueryFilter,
 };
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
