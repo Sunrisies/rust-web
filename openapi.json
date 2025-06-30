@@ -371,6 +371,16 @@
               }
             }
           },
+          "401": {
+            "description": "未授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "用户不存在",
             "content": {
@@ -426,7 +436,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserDto"
+                  "$ref": "#/components/schemas/CommonResponse_Users"
                 }
               }
             }

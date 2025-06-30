@@ -80,6 +80,7 @@ where
                             // 处理解码错误
                             error!("解码令牌时发生错误: {:?}", err);
                             let err = AppError::Unauthorized("无效的令牌".to_string());
+
                             Err(err.into())
                         }
                     }

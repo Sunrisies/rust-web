@@ -9,14 +9,13 @@ use crate::utils::query_parameter::Query;
 use crate::utils::sse::SseNotifier;
 use actix_web::web;
 use chrono::Utc;
-use log::{error, info, warn};
+use log::{error, info};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::fmt::Debug;
 use utoipa::ToSchema;
 use uuid::Uuid; // 添加uuid crate依赖
@@ -194,6 +193,7 @@ pub async fn get_user_by_uuid(
     ),
     responses(
         (status = 200, description = "用户信息更新成功", body = CommonResponse<Users>),
+        (status = 401, description = "未授权", body = AppError),
         (status = 400, description = "请求参数错误", body = AppError),
         (status = 404, description = "用户不存在", body = AppError),
         (status = 409, description = "用户名已存在", body = AppError),
@@ -302,7 +302,8 @@ pub async fn update_user(
         ("uuid" = String, Path, description = "用户的 UUID")
     ),
     responses(
-        (status = 200, description = "用户删除成功", body = UserDto),
+
+        (status = 200, description = "用户删除成功", body = CommonResponse<Users>),
         (status = 400, description = "请求参数错误", body = AppError),
         (status = 404, description = "用户不存在", body = AppError),
         (status = 500, description = "服务器内部错误", body = AppError)
@@ -310,7 +311,6 @@ pub async fn update_user(
     security(),
     tag = "用户模块",
     operation_id = "删除用户",
-
 )]
 
 // 删除用户
@@ -329,7 +329,7 @@ pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<Stri
         })?;
 
     if delete_result.rows_affected == 0 {
-        Err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid)))
+        Resp::err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))).to_json_result()
     } else {
         info!("成功删除用户: {}", uuid); // 记录成功操作
         Resp::ok("", &format!("用户 {} 已删除", uuid).to_string()).to_json_result()
