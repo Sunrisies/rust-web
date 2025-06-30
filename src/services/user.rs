@@ -9,6 +9,7 @@ use crate::utils::query_parameter::Query;
 use crate::utils::sse::SseNotifier;
 use actix_web::{web, HttpResponse, Result};
 use chrono::Utc;
+use log::{error, info, warn};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -157,12 +158,17 @@ pub async fn get_all_users(
         (status = 200, description = "获取用户信息成功", body = CommonResponse<UserDto>),
     ),
 )]
-// 通过ID获取用户
+// 通过uuID获取用户
 pub async fn get_user_by_uuid(
     db: web::Data<DatabaseConnection>,
     uuid: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
-    // 验证UUID格式
+    // 检验当前uuid是否为空
+    // if uuid.is_empty() || uuid.len() != 36 {
+    //     return Err(AppError::BadRequest("无效的UUID格式".to_string()));
+    // }
+    info!("获取用户信息请求: {}", uuid); // 记录请求日志
+                                         // 验证UUID格式
     let uuid =
         Uuid::parse_str(&uuid).map_err(|_| AppError::BadRequest("无效的UUID格式".to_string()))?;
 

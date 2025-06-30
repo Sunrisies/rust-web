@@ -15,9 +15,9 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/users")
                     .route("", web::get().to(user::get_all_users))
-                    .route("/{uuid}", web::put().to(user::update_user))
-                    .route("/{uuid}", web::get().to(user::get_user_by_uuid))
-                    .route("/{uuid}", web::delete().to(user::delete_user)),
+                    .route("/{uuid:.*}", web::put().to(user::update_user))
+                    .route("/{uuid:.*}", web::get().to(user::get_user_by_uuid))
+                    .route("/{uuid:.*}", web::delete().to(user::delete_user)),
             )
             .service(
                 web::scope("/auth")
