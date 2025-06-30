@@ -44,5 +44,6 @@ pub fn write_to_file() {
     let openapi_json = ApiDoc::openapi().to_pretty_json().unwrap();
     let mut file = File::create("openapi.json").unwrap();
     writeln!(file, "{}", openapi_json).unwrap();
-    log::info!("{}112112312", openapi_json);
+    log::info!("OpenAPI JSON written to openapi.json");
+    // log::info!("{}112112312", openapi_json);
 }

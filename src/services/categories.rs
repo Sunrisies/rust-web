@@ -1,13 +1,26 @@
+use crate::common::{
+    CategoryQuery, CommonResponse, PaginatedResponse, PaginationInfo, PaginationQuery,
+    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
+};
+use crate::data_processing::deep_filter_data;
 use crate::middleware::helpers::{Resp, SimpleResp};
-use crate::models::categories::{self};
+use crate::models::categories::{self, Entity as CategoriesEntity};
 use crate::models::sea_orm_active_enums::Type;
 use crate::serde::deserialize_enum;
 use crate::serde::EnumDeserialize;
+use crate::services::user::UserInfo;
+use crate::utils::query_parameter::Query;
+use crate::AppError;
 use actix_web::web;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use log::*;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use validator::Validate;
 
 impl EnumDeserialize for Type {
     fn from_str(s: &str) -> Result<Self, ()> {
@@ -50,7 +63,7 @@ pub async fn create_category(
     payload: web::Json<CategoryRequest>,
 ) -> SimpleResp {
     log::info!("create_category payload: {:?}", payload);
-    let category = categories::Entity::find()
+    let category = CategoriesEntity::find()
         .filter(categories::Column::Name.eq(payload.name.clone()))
         .one(db.get_ref())
         .await;
@@ -72,4 +85,78 @@ pub async fn create_category(
             Resp::ok("", "创建分类失败").to_json_result()
         }
     }
+}
+
+// 获取分类列表,带有分页
+#[utoipa::path(
+    get,
+    path = "/api/categories",
+    tag = "分类",
+    operation_id = "获取分类列表",
+    request_body = PaginationQuery,
+    responses(
+        (status = 200, description = "获取分类列表成功", body = CommonResponse<UserInfo>),
+        (status = 500, description = "获取分类列表失败", body = SimpleRespData),
+    ),
+)]
+pub async fn get_all_categories(
+    db: web::Data<DatabaseConnection>,
+    query: Query<CategoryQuery>,
+) -> SimpleResp {
+    // 验证分页参数
+    let validated_query = match query.validate() {
+        Ok(_) => query.into_inner(),
+        Err(e) => {
+            error!("分页参数验证失败: {:?}", e);
+
+            return Resp::err(AppError::DeserializeError("分页参数验证失败".to_string()))
+                .to_json_result();
+        }
+    };
+    info!("validated_query: {:?}", validated_query);
+    let page = validated_query.page.unwrap_or(1);
+    let limit = validated_query.limit.unwrap_or(DEFAULT_PAGE_SIZE);
+
+    // 限制每页数量的范围
+    let limit = if limit == 0 {
+        DEFAULT_PAGE_SIZE
+    } else if limit > MAX_PAGE_SIZE {
+        MAX_PAGE_SIZE
+    } else {
+        limit
+    };
+    let offset = (page - 1) * limit;
+
+    // 获取总数和分页数据
+    let (total, categories) = match tokio::try_join!(
+        CategoriesEntity::find().count(db.as_ref()),
+        CategoriesEntity::find()
+            .order_by_desc(categories::Column::Id)
+            .offset(Some(offset))
+            .limit(Some(limit))
+            .all(db.as_ref())
+    ) {
+        Ok((total, categories)) => (total, categories),
+        Err(e) => {
+            error!("数据库操作失败: {}", e);
+            return Resp::err(AppError::InternalServerError("数据库操作失败".to_string()))
+                .to_json_result();
+        }
+    };
+    let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
+    let data = deep_filter_data(categories, vec!["id"]);
+    // // 获取分页用户数据
+    let response = PaginatedResponse {
+        data,
+        pagination: PaginationInfo {
+            total,
+            total_pages,
+            current_page: page,
+            limit,
+            has_next: page < total_pages,
+            has_previous: page > 1,
+        },
+    };
+
+    Resp::ok(response, "获取用户列表成功").to_json_result()
 }

@@ -2,7 +2,7 @@
 use super::sea_orm_active_enums::Type;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-
+use serde_json::Value as JsonValue;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "categories")]
 pub struct Model {
@@ -34,4 +34,17 @@ impl Related<super::third_party_libraries::Entity> for Entity {
     }
 }
 
+impl From<Model> for JsonValue {
+    fn from(model: Model) -> JsonValue {
+        serde_json::to_value(model).unwrap()
+    }
+}
+
+impl TryFrom<JsonValue> for Model {
+    type Error = serde_json::Error;
+
+    fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
+        serde_json::from_value(value)
+    }
+}
 impl ActiveModelBehavior for ActiveModel {}

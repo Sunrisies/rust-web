@@ -1,4 +1,7 @@
-use crate::common::{CommonResponse, PaginationInfo};
+use crate::common::{
+    CommonResponse, PaginatedResponse, PaginationInfo, PaginationQuery, DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+};
 use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::data_processing::{deep_filter_data, filter_value};
 use crate::dto::user::{UpdateUserRequest, UserDto};
@@ -15,39 +18,10 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
-
-const DEFAULT_PAGE_SIZE: u64 = 10;
-const MAX_PAGE_SIZE: u64 = 100;
-#[derive(Validate, Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct PaginationQuery {
-    #[serde(default = "default_page")]
-    #[validate(range(min = 1, message = "页码必须大于1"))]
-    pub page: Option<u64>,
-    // 每页数量不能超过100
-    #[serde(default = "default_size")]
-    #[validate(range(max = MAX_PAGE_SIZE, message = "每页数量不能超过100"))]
-    pub limit: Option<u64>,
-}
-// 默认值函数
-// 添加默认函数实现
-fn default_page() -> Option<u64> {
-    Some(1)
-}
-
-fn default_size() -> Option<u64> {
-    Some(DEFAULT_PAGE_SIZE)
-}
-
-#[derive(Serialize)]
-pub struct PaginatedResponse<T> {
-    data: Vec<T>,
-    pagination: PaginationInfo,
-}
 
 #[derive(Serialize)]
 struct ErrorResponse {

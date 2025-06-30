@@ -1,3 +1,4 @@
+use log::*;
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -21,7 +22,7 @@ pub fn filter_value(value: Value, exclude: Vec<&str>) -> Value {
         Value::Object(mut map) => {
             // 过滤当前层
             for field in &sensitive_fields {
-                log::error!("exclude field: {}", field);
+                error!("exclude field: {}", field);
                 map.remove(field);
             }
 
@@ -29,7 +30,7 @@ pub fn filter_value(value: Value, exclude: Vec<&str>) -> Value {
             // for (_, v) in map.iter_mut() {
             //     *v = filter_value(v.clone(), exclude);
             // }
-            log::error!("map: {:?}", map);
+            error!("map: {:?}", map);
             Value::Object(map)
         }
         Value::Array(arr) => Value::Array(

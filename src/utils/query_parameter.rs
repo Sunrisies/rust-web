@@ -72,6 +72,7 @@ impl<T: DeserializeOwned + std::fmt::Debug> FromRequest for Query<T> {
 
         // 如果检测当前参数是空的话可以直接过去
         let query = req.query_string();
+        log::info!("Query: {:?}", query);
         let _params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
             .into_owned()
             .collect();
