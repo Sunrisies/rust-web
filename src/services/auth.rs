@@ -6,6 +6,7 @@ use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity, Model};
 use crate::permission::Permission;
 use crate::permission::{PERMISSION_LIST, PERMISSION_MAP};
+use crate::services::user::UserInfo;
 use actix_web::{web, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
@@ -20,24 +21,24 @@ use std::time::SystemTime;
 use utoipa::ToSchema;
 use validator::Validate;
 
-#[derive(Debug, Serialize)]
-pub struct UserInfo {
-    pub user_name: String,
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub role: Option<String>,
-    pub permissions: Option<String>,
-    pub created_at: DateTimeUtc,
-    pub updated_at: DateTimeUtc,
-    pub id: i32,
-    pub uuid: String,
-}
+// #[derive(Debug, Serialize, ToSchema)]
+// pub struct UserInfo {
+//     pub user_name: String,
+//     pub email: Option<String>,
+//     pub phone: Option<String>,
+//     pub role: Option<String>,
+//     pub permissions: Option<String>,
+//     pub created_at: DateTimeUtc,
+//     pub updated_at: DateTimeUtc,
+//     pub id: i32,
+//     pub uuid: String,
+// }
 #[derive(Debug, Serialize)]
 pub struct DataResponse<T> {
     data: T,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct LoginData {
     pub user: UserInfo,
     pub access_token: String,
@@ -51,7 +52,7 @@ pub struct LoginData {
     tag = "鉴权模块",
     operation_id = "用户登录",
     responses(
-        (status = 200, description = "登录成功", body = SimpleRespData),
+        (status = 200, description = "登录成功", body = CommonResponse<LoginData>),
         (status = 400, description = "验证错误", body = SimpleRespData),
         (status = 404, description = "用户名不存在", body = SimpleRespData),
         (status = 500, description = "服务器内部错误", body = SimpleRespData),
@@ -61,10 +62,13 @@ pub async fn login(
     db: web::Data<DatabaseConnection>,
     user_data: web::Json<LoginRequest>,
 ) -> SimpleResp {
-    user_data.validate().map_err(|e| {
-        info!("{:?}", e); // 打印验证错误
-        AppError::DeserializeError(e.to_string())
-    })?;
+    match user_data.validate() {
+        Ok(_) => {}
+        Err(e) => {
+            info!("{:?}", e); // 打印验证错误
+            return Resp::err(AppError::DeserializeError(e.to_string())).to_json_result();
+        }
+    };
     let user_data = user_data.into_inner(); // 提取内部数据
 
     // 检查用户名是否存在
@@ -123,12 +127,14 @@ fn build_login_response(credentials: Model, token: String) -> LoginData {
         id: credentials.id,
         uuid: credentials.uuid,
         user_name: credentials.user_name,
-        created_at: credentials.created_at,
-        updated_at: credentials.updated_at,
+        created_at: credentials.created_at.to_string(),
+        updated_at: credentials.updated_at.to_string(),
         email: credentials.email,
         phone: credentials.phone,
         role: credentials.role,
         permissions: credentials.permissions.clone(),
+        image: credentials.image,
+        binding: credentials.binding,
     };
 
     LoginData {

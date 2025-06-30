@@ -54,7 +54,7 @@ struct ErrorResponse {
     error: String,
 }
 #[derive(Serialize, ToSchema)]
-pub struct Users {
+pub struct UserInfo {
     pub id: i32,
     pub uuid: String,
     pub user_name: String,
@@ -70,7 +70,7 @@ pub struct Users {
 
 #[derive(Serialize, ToSchema)]
 pub struct UserResponse {
-    data: Vec<Users>,
+    data: Vec<UserInfo>,
     pagination: PaginationInfo,
 }
 
@@ -150,8 +150,8 @@ pub async fn get_all_users(
     tag = "用户模块",
     operation_id = "获取指定用户信息",
     responses(
-        (status = 200, description = "获取用户信息成功", body = CommonResponse<Users>),
-        (status = 404, description = "用户不存在", body = CommonResponse<Option<Users>>)
+        (status = 200, description = "获取用户信息成功", body = CommonResponse<UserInfo>),
+        (status = 404, description = "用户不存在", body = CommonResponse<Option<UserInfo>>)
     ),
 )]
 // 通过uuID获取用户
@@ -202,7 +202,7 @@ pub async fn get_user_by_uuid(
         ("uuid" = String, Path, description = "用户的 UUID")
     ),
     responses(
-        (status = 200, description = "用户信息更新成功", body = CommonResponse<Users>),
+        (status = 200, description = "用户信息更新成功", body = CommonResponse<UserInfo>),
         (status = 401, description = "未授权", body = AppError),
         (status = 400, description = "请求参数错误", body = AppError),
         (status = 404, description = "用户不存在", body = AppError),
@@ -327,7 +327,7 @@ pub async fn update_user(
     ),
     responses(
 
-        (status = 200, description = "用户删除成功", body = CommonResponse<Users>),
+        (status = 200, description = "用户删除成功", body = CommonResponse<UserInfo>),
         (status = 400, description = "请求参数错误", body = AppError),
         (status = 404, description = "用户不存在", body = AppError),
         (status = 500, description = "服务器内部错误", body = AppError)

@@ -37,7 +37,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimpleRespData"
+                  "$ref": "#/components/schemas/CommonResponse_LoginData"
                 }
               }
             }
@@ -307,7 +307,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_Users"
+                  "$ref": "#/components/schemas/CommonResponse_UserInfo"
                 }
               }
             }
@@ -317,7 +317,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_Option_Users"
+                  "$ref": "#/components/schemas/CommonResponse_Option_UserInfo"
                 }
               }
             }
@@ -356,7 +356,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_Users"
+                  "$ref": "#/components/schemas/CommonResponse_UserInfo"
                 }
               }
             }
@@ -436,7 +436,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CommonResponse_Users"
+                  "$ref": "#/components/schemas/CommonResponse_UserInfo"
                 }
               }
             }
@@ -603,6 +603,44 @@
           }
         }
       },
+      "CommonResponse_LoginData": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "access_token",
+              "expires_in"
+            ],
+            "properties": {
+              "access_token": {
+                "type": "string"
+              },
+              "expires_in": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "user": {
+                "$ref": "#/components/schemas/UserInfo"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "CommonResponse_Option_UserDto": {
         "type": "object",
         "required": [
@@ -678,7 +716,7 @@
           }
         }
       },
-      "CommonResponse_Option_Users": {
+      "CommonResponse_Option_UserInfo": {
         "type": "object",
         "required": [
           "code",
@@ -834,42 +872,7 @@
           }
         }
       },
-      "CommonResponse_UserResponse": {
-        "type": "object",
-        "required": [
-          "code",
-          "message"
-        ],
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "data": {
-            "type": "object",
-            "required": [
-              "data",
-              "pagination"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Users"
-                }
-              },
-              "pagination": {
-                "$ref": "#/components/schemas/PaginationInfo"
-              }
-            }
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "CommonResponse_Users": {
+      "CommonResponse_UserInfo": {
         "type": "object",
         "required": [
           "code",
@@ -950,6 +953,41 @@
           }
         }
       },
+      "CommonResponse_UserResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "data",
+              "pagination"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/PaginationInfo"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "CommonResponse_Vec_PermissionResponse": {
         "type": "object",
         "required": [
@@ -982,6 +1020,27 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "LoginData": {
+        "type": "object",
+        "required": [
+          "user",
+          "access_token",
+          "expires_in"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfo"
           }
         }
       },
@@ -1171,25 +1230,7 @@
           }
         }
       },
-      "UserResponse": {
-        "type": "object",
-        "required": [
-          "data",
-          "pagination"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Users"
-            }
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/PaginationInfo"
-          }
-        }
-      },
-      "Users": {
+      "UserInfo": {
         "type": "object",
         "required": [
           "id",
@@ -1250,6 +1291,24 @@
           },
           "uuid": {
             "type": "string"
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserInfo"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationInfo"
           }
         }
       }
