@@ -160,3 +160,31 @@ pub async fn get_all_categories(
 
     Resp::ok(response, "获取用户列表成功").to_json_result()
 }
+
+// 删除分类
+#[utoipa::path(
+    delete,
+    path = "/api/categories/{id}",
+    tag = "分类",
+    operation_id = "删除分类",
+    responses(
+        (status = 200, description = "删除分类成功", body = SimpleRespData),
+        (status = 404, description = "分类不存在", body = SimpleRespData),
+        (status = 500, description = "删除分类失败", body = SimpleRespData),
+    ),
+)]
+pub async fn delete_category(db: web::Data<DatabaseConnection>, id: web::Path<i32>) -> SimpleResp {
+    let category = CategoriesEntity::find_by_id(id.into_inner())
+        .one(db.get_ref())
+        .await;
+    if let Ok(None) = category {
+        return Resp::ok("", "分类不存在").to_json_result();
+    }
+    match category.delete(db.get_ref()).await {
+        Ok(_) => Resp::ok("", "删除分类成功").to_json_result(),
+        Err(e) => {
+            log::error!("delete_category error: {}", e);
+            Resp::ok("", "删除分类失败").to_json_result()
+        }
+    }
+}
