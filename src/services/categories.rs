@@ -15,8 +15,8 @@ use actix_web::web;
 use chrono::Utc;
 use log::*;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -174,12 +174,21 @@ pub async fn get_all_categories(
     ),
 )]
 pub async fn delete_category(db: web::Data<DatabaseConnection>, id: web::Path<i32>) -> SimpleResp {
-    let category = CategoriesEntity::find_by_id(id.into_inner())
+    let category = match CategoriesEntity::find_by_id(id.into_inner())
         .one(db.get_ref())
-        .await;
-    if let Ok(None) = category {
-        return Resp::ok("", "分类不存在").to_json_result();
+        .await
+    {
+        Ok(data) => data,
+        Err(e) => {
+            log::error!("delete_category error: {}", e);
+            return Resp::err(AppError::InternalServerError("查询分类失败".to_string()))
+                .to_json_result();
+        }
+    };
+    if category.is_none() {
+        return Resp::err(AppError::NotFound("分类不存在".to_string())).to_json_result();
     }
+    let category = category.unwrap();
     match category.delete(db.get_ref()).await {
         Ok(_) => Resp::ok("", "删除分类成功").to_json_result(),
         Err(e) => {

@@ -50,7 +50,8 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/categories")
                     .route("", web::post().to(categories::create_category))
-                    .route("", web::get().to(categories::get_all_categories)),
+                    .route("", web::get().to(categories::get_all_categories))
+                    .route("/{id:.*}", web::delete().to(categories::delete_category)),
             ),
     );
 }
