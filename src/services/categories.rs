@@ -145,7 +145,6 @@ pub async fn get_all_categories(
     };
     let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
     let data = deep_filter_data(categories, vec!["id"]);
-    // // 获取分页用户数据
     let response = PaginatedResponse {
         data,
         pagination: PaginationInfo {
@@ -158,7 +157,7 @@ pub async fn get_all_categories(
         },
     };
 
-    Resp::ok(response, "获取用户列表成功").to_json_result()
+    Resp::ok(response, "获取分类列表成功").to_json_result()
 }
 
 // 删除分类
