@@ -6,3 +6,4 @@ pub mod user;
 pub use routes::config_routes;
 pub mod articles;
 pub mod categories;
+pub mod tags;

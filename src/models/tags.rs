@@ -2,16 +2,17 @@
 
 use super::sea_orm_active_enums::Type;
 use sea_orm::entity::prelude::*;
-
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "tags")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub name: String,
     pub r#type: Type,
-    pub created_at: DateTime,
-    pub updated_at: DateTime,
+    pub created_at: DateTimeUtc,
+    pub updated_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -49,6 +50,19 @@ impl Related<super::third_party_libraries::Entity> for Entity {
     }
     fn via() -> Option<RelationDef> {
         Some(super::library_tags::Relation::Tags.def().rev())
+    }
+}
+impl From<Model> for JsonValue {
+    fn from(model: Model) -> JsonValue {
+        serde_json::to_value(model).unwrap()
+    }
+}
+
+impl TryFrom<JsonValue> for Model {
+    type Error = serde_json::Error;
+
+    fn try_from(value: JsonValue) -> Result<Self, Self::Error> {
+        serde_json::from_value(value)
     }
 }
 

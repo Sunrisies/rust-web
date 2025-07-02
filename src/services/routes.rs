@@ -3,6 +3,7 @@ use super::auth;
 use super::authenticator;
 use super::categories;
 use super::sse;
+use super::tags;
 use super::user;
 use crate::config::permission::Permission;
 use crate::utils::permission_guard::PermissionGuard;
@@ -52,6 +53,7 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                     .route("", web::post().to(categories::create_category))
                     .route("", web::get().to(categories::get_all_categories))
                     .route("/{id:.*}", web::delete().to(categories::delete_category)),
-            ),
+            )
+            .service(web::scope("/tags").route("", web::post().to(tags::create_tag))),
     );
 }
