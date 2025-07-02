@@ -73,3 +73,7 @@ macro_rules! paginated_query {
 paginated_query!(CategoryQuery {
     select: Option<String>
 });
+
+paginated_query!(TagsQuery {
+    select: Option<String>
+});

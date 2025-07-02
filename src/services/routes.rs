@@ -54,6 +54,10 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                     .route("", web::get().to(categories::get_all_categories))
                     .route("/{id:.*}", web::delete().to(categories::delete_category)),
             )
-            .service(web::scope("/tags").route("", web::post().to(tags::create_tag))),
+            .service(
+                web::scope("/tags")
+                    .route("", web::post().to(tags::create_tag))
+                    .route("", web::get().to(tags::get_all_tags)),
+            ),
     );
 }
