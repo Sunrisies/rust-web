@@ -39,7 +39,7 @@ use utoipa::OpenApi;
 )]
 pub struct ApiDoc;
 
-#[cfg(debug_assertions)]
+// #[cfg(debug_assertions)]
 pub fn write_to_file() {
     let openapi_json = ApiDoc::openapi().to_pretty_json().unwrap();
     let mut file = File::create("openapi.json").unwrap();
