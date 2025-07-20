@@ -15,16 +15,6 @@ pub struct UserDto {
     #[validate(length(min = 6, max = 100, message = "密码长度必须在6到100之间"))]
     #[serde(rename = "pass_word")]
     pub pass_word: String,
-    #[serde(rename = "image")]
-    pub image: Option<String>,
-    #[serde(rename = "phone")]
-    pub phone: Option<String>,
-    #[serde(rename = "role")]
-    pub role: Option<String>,
-    #[serde(rename = "permissions")]
-    pub permissions: Option<String>,
-    #[serde(rename = "binding")]
-    pub binding: Option<String>,
 }
 
 #[derive(Validate, Debug, Default, Clone, Serialize, Deserialize, ToSchema)]

@@ -1,49 +1,26 @@
-use sea_orm::{entity::prelude::*, DeleteResult};
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "users")]
+#[sea_orm(table_name = "t_user")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = true)]
-    pub id: i32, // 自增id
+    #[sea_orm(primary_key)]
+    pub id: i64,
     #[sea_orm(unique)]
-    pub uuid: String, // 用户UUID
-    #[sea_orm(unique)]
-    pub user_name: String, // 用户名
-    pub pass_word: String,           // 密码
-    pub email: Option<String>,       // 邮箱
-    pub image: Option<String>,       // 头像
-    pub phone: Option<String>,       // 手机号
-    pub role: Option<String>,        // 角色
-    pub permissions: Option<String>, // 权限
-    pub binding: Option<String>,     // authentication绑定
+    pub user_name: String,
+    pub pass_word: String,
+    pub nickname: Option<String>,
+    pub email: Option<String>,
     #[sea_orm(default_value_t = DateTimeUtc::default())]
-    pub created_at: DateTimeUtc,
+    pub create_time: DateTimeUtc,
+    pub status: i8,
     #[sea_orm(default_value_t = DateTimeUtc::default())]
-    pub updated_at: DateTimeUtc,
+    pub update_time: DateTimeUtc,
 }
-
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {}
 
-impl Entity {
-    // 添加按UUID查询的方法
-    pub fn find_by_uuid(uuid: &str) -> Select<Entity> {
-        Self::find().filter(Column::Uuid.eq(uuid))
-    }
-
-    // 添加使用UUID删除的方法
-    pub async fn delete_by_uuid(
-        db: &DatabaseConnection,
-        uuid: &str,
-    ) -> Result<DeleteResult, sea_orm::DbErr> {
-        let result = Self::delete_many()
-            .filter(Column::Uuid.eq(uuid))
-            .exec(db)
-            .await?;
-        Ok(result)
-    }
-}
+impl Entity {}
 
 impl From<Model> for JsonValue {
     fn from(model: Model) -> JsonValue {

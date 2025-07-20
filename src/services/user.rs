@@ -2,9 +2,8 @@ use crate::common::{
     CommonResponse, PaginatedResponse, PaginationInfo, PaginationQuery, DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
 };
-use crate::config::permission::{Permission, PERMISSION_MAP};
 use crate::data_processing::{deep_filter_data, filter_value};
-use crate::dto::user::{UpdateUserRequest, UserDto};
+use crate::dto::user::UpdateUserRequest;
 use crate::error::error::AppError;
 use crate::middleware::helpers::{Resp, SimpleResp};
 use crate::models::user::{self, Entity as UserEntity};
@@ -20,7 +19,6 @@ use sea_orm::{
 };
 use serde::Serialize;
 use utoipa::ToSchema;
-use uuid::Uuid; // 添加uuid crate依赖
 use validator::Validate;
 
 #[derive(Serialize)]
@@ -29,17 +27,12 @@ struct ErrorResponse {
 }
 #[derive(Serialize, ToSchema)]
 pub struct UserInfo {
-    pub id: i32,
-    pub uuid: String,
+    pub id: i64,
     pub user_name: String,
     pub email: Option<String>,
-    pub image: Option<String>,
-    pub phone: Option<String>,
-    pub role: Option<String>,
-    pub permissions: Option<String>,
-    pub binding: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub create_time: String,
+    pub update_time: String,
+    pub status: i8,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -128,85 +121,15 @@ pub async fn get_all_users(
         (status = 404, description = "用户不存在", body = CommonResponse<Option<UserInfo>>)
     ),
 )]
-// 通过uuID获取用户
-pub async fn get_user_by_uuid(
-    db: web::Data<DatabaseConnection>,
-    uuid: web::Path<String>,
-) -> SimpleResp {
-    let uuid_result = Uuid::parse_str(&uuid);
-    let uuid = match uuid_result {
-        Ok(u) => u,
-        Err(_) => {
-            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
-                .to_json_result();
-        }
-    };
 
-    let user = match UserEntity::find_by_uuid(&uuid.to_string())
-        .one(db.as_ref())
-        .await
-    {
-        Ok(u) => u,
-        Err(e) => {
-            error!("获取用户信息失败: {}", e); // 记录错误日志
-            return Resp::err(AppError::InternalServerError(
-                "获取用户信息失败".to_string(),
-            ))
-            .to_json_result();
-        }
-    };
-
-    match user {
-        Some(user) => {
-            let data = filter_value(user.into(), vec!["pass_word"]);
-            Resp::ok(data, "获取用户信息成功").to_json_result()
-        }
-        None => {
-            Resp::err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))).to_json_result()
-        }
-    }
-}
-
-#[utoipa::path(
-    put,
-    path = "/api/users/{uuid}",
-    request_body = UserDto,
-    operation_id = "更新用户信息",
-    params(
-        ("uuid" = String, Path, description = "用户的 UUID")
-    ),
-    responses(
-        (status = 200, description = "用户信息更新成功", body = CommonResponse<UserInfo>),
-        (status = 401, description = "未授权", body = AppError),
-        (status = 400, description = "请求参数错误", body = AppError),
-        (status = 404, description = "用户不存在", body = AppError),
-        (status = 409, description = "用户名已存在", body = AppError),
-        (status = 500, description = "服务器内部错误", body = AppError)
-    ),
-    security(),
-    tag = "用户模块"
-)]
 // 更新用户信息
 pub async fn update_user(
     db: web::Data<DatabaseConnection>,
-    uuid: web::Path<String>,
+    id: web::Path<i64>,
     user_data: web::Json<UpdateUserRequest>,
     notifier: web::Data<SseNotifier>,
 ) -> SimpleResp {
-    // 验证UUID格式
-    let uuid_result = Uuid::parse_str(&uuid);
-    let uuid = match uuid_result {
-        Ok(u) => u,
-        Err(_) => {
-            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
-                .to_json_result();
-        }
-    };
-
-    let existing_user = match UserEntity::find_by_uuid(&uuid.to_string())
-        .one(db.as_ref())
-        .await
-    {
+    let existing_user = match UserEntity::find_by_id(*id).one(db.as_ref()).await {
         Ok(u) => u,
         Err(e) => {
             error!("获取用户信息失败: {}", e); // 记录错误日志
@@ -218,7 +141,7 @@ pub async fn update_user(
     };
 
     let existing_user =
-        existing_user.ok_or_else(|| AppError::NotFound(format!("ID为{}的用户不存在", uuid)))?;
+        existing_user.ok_or_else(|| AppError::NotFound(format!("ID为{}的用户不存在", id)))?;
 
     // 3. 准备更新模型
     let mut user_active: user::ActiveModel = existing_user.into();
@@ -228,7 +151,7 @@ pub async fn update_user(
     if user_active.user_name != Set(user_data.user_name.clone()) {
         let exists = UserEntity::find()
             .filter(user::Column::UserName.eq(&user_data.user_name))
-            .filter(user::Column::Uuid.ne(&*uuid.to_string()))
+            .filter(user::Column::Id.ne(&*id.to_string()))
             .count(db.as_ref())
             .await
             .map_err(|e| AppError::InternalServerError(format!("用户名检查失败: {}", e)))?
@@ -243,33 +166,8 @@ pub async fn update_user(
         user_active.user_name = Set(user_data.user_name.clone());
     }
 
-    // 5. 权限更新逻辑
-    if let Some(permissions) = &user_data.permissions {
-        // 使用 PERMISSION_MAP 来验证权限
-        let mut permission_bits = Permission::empty();
-
-        for perm in permissions {
-            match PERMISSION_MAP.get(perm.as_str()) {
-                Some(flag) => {
-                    permission_bits.insert(*flag);
-                }
-                None => {
-                    return Err(AppError::BadRequest(format!("无效权限: {}", perm)));
-                }
-            }
-        }
-
-        // 将权限位转换为数值存储
-        user_active.permissions = Set(Some(permission_bits.bits().to_string()));
-    }
-
-    // 6. 其他字段更新
-    // if let Some(image) = &user_data.image {
-    //     user_active.avatar = Set(image.clone());
-    // }
-
     // 7. 更新时间戳
-    user_active.updated_at = Set(Utc::now());
+    user_active.update_time = Set(Utc::now());
 
     // 8. 执行更新
     let updated_user = user_active
@@ -293,39 +191,13 @@ pub async fn update_user(
     Resp::ok(data, "修改用户信息成功").to_json_result()
 }
 
-#[utoipa::path(
-    delete,
-    path = "/api/users/{uuid}",
-    params(
-        ("uuid" = String, Path, description = "用户的 UUID")
-    ),
-    responses(
-
-        (status = 200, description = "用户删除成功", body = CommonResponse<UserInfo>),
-        (status = 400, description = "请求参数错误", body = AppError),
-        (status = 404, description = "用户不存在", body = AppError),
-        (status = 500, description = "服务器内部错误", body = AppError)
-    ),
-    security(),
-    tag = "用户模块",
-    operation_id = "删除用户",
-)]
-
 // 删除用户
-pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<String>) -> SimpleResp {
-    info!("删除用户请求: {}", uuid); // 改为info级别
-
-    // 使用uuid库验证UUID格式
-    let uuid_result = Uuid::parse_str(&uuid);
-    let uuid = match uuid_result {
-        Ok(u) => u,
-        Err(_) => {
-            return Resp::err(AppError::BadRequest("无效的 UUID 格式".to_string()))
-                .to_json_result();
-        }
-    };
-
-    let delete_result = match UserEntity::delete_by_uuid(db.as_ref(), &uuid.to_string()).await {
+pub async fn delete_user(db: web::Data<DatabaseConnection>, id: web::Path<i64>) -> SimpleResp {
+    let delete_result = match UserEntity::delete_many()
+        .filter(user::Column::Id.eq(*id))
+        .exec(db.as_ref())
+        .await
+    {
         Ok(u) => u,
         Err(e) => {
             error!("删除用户失败: {}", e); // 记录错误日志
@@ -333,11 +205,10 @@ pub async fn delete_user(db: web::Data<DatabaseConnection>, uuid: web::Path<Stri
                 .to_json_result();
         }
     };
-
     if delete_result.rows_affected == 0 {
-        Resp::err(AppError::NotFound(format!("UUID为{}的用户不存在", uuid))).to_json_result()
+        Resp::err(AppError::NotFound(format!("ID为{}的用户不存在", id))).to_json_result()
     } else {
-        info!("成功删除用户: {}", uuid); // 记录成功操作
-        Resp::ok("", &format!("用户 {} 已删除", uuid).to_string()).to_json_result()
+        info!("成功删除用户: {}", id); // 记录成功操作
+        Resp::ok("", &format!("用户 {} 已删除", id).to_string()).to_json_result()
     }
 }

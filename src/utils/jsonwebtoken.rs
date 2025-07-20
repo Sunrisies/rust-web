@@ -7,7 +7,6 @@ pub struct TokenClaims {
     pub user_uuid: String,
     pub user_name: String,
     pub exp: usize, // 令牌过期时间
-    pub permissions: Option<String>,
 }
 
 pub fn has_permission(token: &str) -> Result<TokenData<TokenClaims>, Box<dyn std::error::Error>> {
