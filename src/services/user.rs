@@ -96,7 +96,10 @@ pub async fn get_all_users(
             .limit(Some(limit))
             .all(db.as_ref())
     )
-    .map_err(|e| AppError::InternalServerError(format!("数据库操作失败: {}", e)))?;
+    .map_err(|e| {
+        error!("数据库操作获取用户列表失败: {}", e);
+        AppError::DatabaseError("服务器异常，请联系管理员".to_string())
+    })?;
     let total_pages = (total + limit - 1) / limit; // 整数除法避免浮点误差
 
     info!("total1: {}, users1: {:?}, ", total, users);

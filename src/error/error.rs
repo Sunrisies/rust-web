@@ -51,8 +51,9 @@ pub enum AppError {
 #[derive(Serialize)]
 struct ErrorResponse {
     code: u16,
-    error: String,
+    // error: Option<String>,
     message: String,
+    data: Option<serde_json::Value>,
 }
 // 错误处理
 impl ResponseError for AppError {
@@ -60,23 +61,25 @@ impl ResponseError for AppError {
         match self {
             AppError::BadRequest(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
-                error: "缺少参数".to_string(),
+                // error: "缺少参数".to_string(),
                 message: msg.to_string(),
+                data: None,
             }),
             AppError::NotFound(msg) => HttpResponse::NotFound().json(ErrorResponse {
                 code: 404,
-                error: "资源未找到".to_string(),
                 message: msg.to_string(),
+                data: None,
             }),
             AppError::Unauthorized(msg) => HttpResponse::Unauthorized().json(ErrorResponse {
                 code: 401,
-                error: "权限不足".to_string(),
+
                 message: msg.to_string(),
+                data: None,
             }),
             AppError::DeserializeError(msg) => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
-                error: "参数类型错误".to_string(),
                 message: msg.to_string(),
+                data: None,
             }),
             AppError::Conflict(msg) => {
                 HttpResponse::Conflict().json(serde_json::json!({ "error": msg }))
@@ -84,37 +87,37 @@ impl ResponseError for AppError {
 
             AppError::Forbidden(msg) => HttpResponse::Forbidden().json(ErrorResponse {
                 code: 403,
-                error: "禁止访问".to_string(),
                 message: msg.to_string(),
+                data: None,
             }),
 
             AppError::InternalServerError(msg) => {
                 HttpResponse::InternalServerError().json(ErrorResponse {
                     code: 500,
-                    error: "服务器错误".to_string(),
                     message: msg.to_string(),
+                    data: None,
                 })
             }
             AppError::InvalidTokenFormat => HttpResponse::BadRequest().json(ErrorResponse {
                 code: 400,
-                error: "令牌格式不正确".to_string(),
                 message: "令牌格式不正确".to_string(),
+                data: None,
             }),
             AppError::TokenNotFound => HttpResponse::Unauthorized().json(ErrorResponse {
                 code: 401,
-                error: "令牌未找到".to_string(),
                 message: "令牌未找到".to_string(),
+                data: None,
             }),
             AppError::PermissionsEmpty => HttpResponse::Forbidden().json(ErrorResponse {
                 code: 403,
-                error: "权限字符串为空".to_string(),
                 message: "权限字符串为空".to_string(),
+                data: None,
             }),
             AppError::DatabaseError(msg) => {
                 HttpResponse::InternalServerError().json(ErrorResponse {
                     code: 500,
-                    error: "数据库错误".to_string(),
                     message: msg.to_string(),
+                    data: None,
                 })
             }
         }

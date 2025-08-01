@@ -3,7 +3,7 @@ use actix_web::{dev::Payload, error::QueryPayloadError, Error, FromRequest, Http
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, fmt, ops, sync::Arc};
 
-use crate::AppError;
+use crate::{middleware::helpers::Resp, AppError};
 
 #[derive(Clone, Default)]
 pub struct QueryConfig {
@@ -26,8 +26,9 @@ impl QueryConfig {
 
 pub struct Query<T>(pub T);
 
-impl<T> Query<T> {
+impl<T: DeserializeOwned + std::fmt::Debug> Query<T> {
     pub fn into_inner(self) -> T {
+        log::info!("Query into_inner: {:?}", self.0);
         self.0
     }
 }
@@ -76,18 +77,17 @@ impl<T: DeserializeOwned + std::fmt::Debug> FromRequest for Query<T> {
         let _params: HashMap<_, _> = url::form_urlencoded::parse(query.as_bytes())
             .into_owned()
             .collect();
-
+        log::info!("Parsed Query: {:?}", _params);
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
-            .unwrap_or_else(move |_| {
+            .unwrap_or_else(move |err| {
                 log::debug!(
                     "Failed during Query extractor deserialization. \
                      Request path: {:?}",
                     req.path()
                 );
-
-                let new_err =
-                    AppError::Unauthorized("当前参数错误或者当前参数不能为空".to_string());
+                log::error!("Error: {:?}", err);
+                let new_err = AppError::BadRequest("当前参数错误或者当前参数不能为空".to_string());
                 ready(Err(new_err.into()))
             })
     }
