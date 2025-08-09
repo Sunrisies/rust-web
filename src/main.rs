@@ -1,13 +1,19 @@
 use actix_cors::Cors;
 use actix_web::{middleware::ErrorHandlers, web, App, HttpServer};
 use mysql_user_crud::{
-    api_doc::write_to_file, config_routes, create_db_pool, log::init_logger,
-    utils::error_handler::add_error_header, utils::sse::SseNotifier, AppError, Logger,
+    api_doc::write_to_file,
+    config_routes, create_db_pool,
+    log::init_logger,
+    mqtt::MqttClient,
+    utils::{error_handler::add_error_header, sse::SseNotifier},
+    AppError, Logger,
 };
 use std::env;
+use uuid::Uuid;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let client_id = format!("device_{}", Uuid::new_v4());
     init_logger();
     let db_pool = create_db_pool().await.map_err(|e| {
         log::error!("数据库连接失败: {}", e);
@@ -17,6 +23,9 @@ async fn main() -> std::io::Result<()> {
     // 将数据库连接池添加到应用程序数据
     let app_data = web::Data::new(db_pool);
     let notifier = web::Data::new(SseNotifier::new());
+    // mqtt_init(app_data.clone()).await;
+    let mqtt_client =
+        web::Data::new(MqttClient::new(app_data.clone(), "agrocloud.cn", 1883, &client_id).await);
     // 获取服务器地址和端口
     let host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = env::var("SERVER_PORT").unwrap_or_else(|_| "18080".to_string());
@@ -37,6 +46,7 @@ async fn main() -> std::io::Result<()> {
                     .limit(4096) // 限制请求体大小
                     .error_handler(|err, _req| AppError::from(err).into()),
             )
+            .app_data(mqtt_client.clone())
             .app_data(notifier.clone())
             .app_data(app_data.clone())
             .wrap(Logger)
