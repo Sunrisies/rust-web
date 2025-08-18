@@ -49,6 +49,7 @@ utoipa = "5.4.0"
 rumqttc = "0.24.0"
 num-traits = "0.2.19"
 schemars = "1.0.4"
+rust_xlsxwriter = "0.89.1"
 # openssl = { version = "0.10", features = ["vendored"] }
 
 [target.x86_64-unknown-linux-musl.dependencies]

@@ -66,6 +66,7 @@ pub async fn insert_sluice_command(
         .expect("USER_ID 不能为空");
 
     let device_id = params.get("DEVICE_ID").map(|s| s.to_string());
+    let device_info = params.get("DEVICE_INFO").map(|s| s.to_string());
     log::info!("device_id:{:?}", device_id);
     let command = sluice_command::ActiveModel {
         user_id: ActiveValue::Set(user_id),
@@ -73,6 +74,7 @@ pub async fn insert_sluice_command(
         topic: ActiveValue::Set(topic.to_string()),
         create_time: Set(Utc::now().timestamp()),
         content: Set(payload.to_string()),
+        device_info: Set(device_info),
         push_status: Set(push_status),
         ..Default::default()
     };
@@ -215,7 +217,15 @@ impl MqttClient {
                                                         device_id.to_string(),
                                                     );
                                                 }
-
+                                                // DEVICE_INFO
+                                                if let Some(device_info) =
+                                                    json.get("DEVICE_INFO").and_then(|v| v.as_str())
+                                                {
+                                                    params.insert(
+                                                        "DEVICE_INFO".to_string(),
+                                                        device_info.to_string(),
+                                                    );
+                                                }
                                                 params
                                                     .insert("topic".to_string(), topic.to_string());
                                                 params.insert(
@@ -243,11 +253,13 @@ impl MqttClient {
                                         .await;
 
                                     log::info!(
-                                        "✅ 成功收到响应: {} (耗时: {:?}),{},{:?}",
+                                        "✅ 成功收到响应: {} (耗时: {:?}),{},{:?},{:?},{:?}",
                                         topic,
                                         elapsed,
                                         payload,
-                                        params.get("USER_ID")
+                                        params.get("USER_ID"),
+                                        params.get("DEVICE_ID"),
+                                        params.get("DEVICE_INFO"),
                                     );
                                 } else {
                                     insert_sluice_command(&db_pool, &params, topic, payload, 0)

@@ -7,8 +7,11 @@ use crate::models::sluice_command::Entity as SluiceCommandEntity;
 use crate::models::sluice_data::{self, Entity as SluiceDataEntity};
 use crate::models::user::{self, Entity as UserEntity};
 use crate::utils::query_parameter::Query;
+use crate::xlsx::generate_excel;
 use crate::AppError;
+use actix_web::http::header;
 use actix_web::web::{self};
+use actix_web::{Error, HttpResponse};
 use chrono::Duration;
 use chrono::Utc;
 use log::*;
@@ -104,12 +107,6 @@ pub async fn get_all_sluice_control_log(
         .unwrap_or_else(|| (Utc::now() - Duration::hours(1)).timestamp());
     let end_time = query.end_time.unwrap_or_else(|| Utc::now().timestamp());
     let topic = query.topic.clone();
-    log::info!(
-        "start_time: {}, end_time: {},topic:{}",
-        start_time,
-        end_time,
-        topic
-    );
 
     let (data, total) = match SluiceCommandEntity::find_with_user(
         db.as_ref(),
@@ -154,8 +151,16 @@ pub async fn control_sluice(
         user_name,
         topic,
         device_id,
+        device_info,
     } = control.into_inner();
-
+    log::info!(
+        "control_type: {}, user_name: {}, topic: {}, device_id: {}, device_info: {}",
+        control_type,
+        user_name,
+        topic,
+        device_id,
+        device_info
+    );
     // 去数据库查询用户是否存在
     match UserEntity::find()
         .filter(user::Column::UserName.eq(&user_name))
@@ -166,8 +171,8 @@ pub async fn control_sluice(
             warn!("用户名 '{}' 已存在", user_name);
             info!("用户名 '{:?}' 不存在", user_record);
             let payload = format!(
-                "{{\"OPENSTA\": \"{}\", \"USER\": \"{}\",\"DEVICE_ID\": \"{}\"}}",
-                control_type, user_name, device_id
+                "{{\"OPENSTA\": \"{}\", \"USER\": \"{}\",\"DEVICE_ID\": \"{}\",\"DEVICE_INFO\": \"{}\"}}",
+                control_type, user_name, device_id,device_info
             );
 
             // 开启监听mqtt指定端口
@@ -178,8 +183,6 @@ pub async fn control_sluice(
                 Ok(_) => {
                     // 确认消息已发送
                     info!("消息已发送: {}", payload);
-                    return Resp::err(AppError::InternalServerError("MQTT 发布失败".into()))
-                        .to_json_result();
                 }
                 Err(e) => {
                     error!("MQTT 发布失败: {}", e);
@@ -201,4 +204,58 @@ pub async fn control_sluice(
 
     // 如果需要，使用 mqtt 发送消息
     Resp::ok("", "控制命令已发送").to_json_result()
+}
+
+// 导出文件
+pub async fn export_sluice_data(
+    db: web::Data<DatabaseConnection>,
+    query: Query<TimeQuery>,
+) -> Result<HttpResponse, Error> {
+    // 获取时间戳范围
+    let start_time = query
+        .start_time
+        .unwrap_or_else(|| (Utc::now() - Duration::hours(1)).timestamp());
+    let end_time = query.end_time.unwrap_or_else(|| Utc::now().timestamp());
+    let topic = query.topic.clone();
+    // 查询数据
+    let (data, total) =
+        match SluiceDataEntity::find_with_user(db.as_ref(), start_time, end_time, &topic).await {
+            Ok(sluice) => {
+                let total = sluice.len() as u64;
+                log::info!("total2: {}, ", total);
+                (sluice, total)
+            }
+            Err(e) => {
+                error!("Error: {}", e);
+                (vec![], 0)
+            }
+        };
+    log::info!("total2: {}, ", total);
+    // let data = filter_value(data, vec!["id"]);
+
+    let sluice = SluiceDataEntity::find()
+        .filter(sluice_data::Column::SluiceId.eq(topic))
+        .filter(sluice_data::Column::Cstamp.gte(start_time))
+        .filter(sluice_data::Column::Cstamp.lte(end_time))
+        .order_by_desc(sluice_data::Column::Id)
+        .all(db.as_ref())
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("数据库操作失败: {}", e)))?;
+    let total = sluice.len() as u64;
+    info!("total1: {}, ", total);
+    // 生成 Excel 文件
+    let excel_bytes = generate_excel(&data)
+        .map_err(|e| AppError::InternalServerError(format!("Excel 生成失败: {}", e)))?;
+    let stream = futures::stream::once(async move { Ok(web::Bytes::from(excel_bytes)) });
+
+    Ok(HttpResponse::Ok()
+        .append_header((
+            header::CONTENT_TYPE,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ))
+        .append_header((
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}.xlsx\"", "水位历史数据"),
+        ))
+        .streaming::<_, Error>(stream))
 }

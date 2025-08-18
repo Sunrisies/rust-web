@@ -6,3 +6,4 @@ pub mod query_parameter;
 pub mod serde;
 pub mod sluice_mqtt;
 pub mod sse;
+pub mod xlsx;

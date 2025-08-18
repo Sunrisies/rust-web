@@ -70,7 +70,7 @@ pub fn init_logger() {
         .encoder(Box::new(ColorEncoder))
         .build();
 
-    let size_trigger = SizeTrigger::new(1024 * 10); // 1MB
+    let size_trigger = SizeTrigger::new(1024 * 1024); // 1MB
     let window_roller = FixedWindowRoller::builder()
         .base(1)
         .build("logs/test.{}.log", 30)

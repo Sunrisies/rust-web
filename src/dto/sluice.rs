@@ -16,7 +16,8 @@ pub struct SluiceRequest {
     pub control_type: String,
     pub user_name: String,
     pub topic: String,
-    pub device_id: String, // 手机设备id
+    pub device_id: String,   // 手机设备id
+    pub device_info: String, // 设备信息
 }
 // 验证函数，确保 type_ 字段的值是 "0"、"1" 或 "2"
 pub fn validate_type(value: &str) -> Result<(), ValidationError> {

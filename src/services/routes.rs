@@ -29,6 +29,10 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                         "/listSluiceControlLog",
                         web::get().to(sluice::get_all_sluice_control_log),
                     )
+                    .route(
+                        "/exportSluiceData",
+                        web::get().to(sluice::export_sluice_data),
+                    )
                     .route("/control", web::post().to(sluice::control_sluice))
                     .route(
                         "/sluiceDevices",

@@ -68,10 +68,31 @@ pub async fn login(
             user_data.user_name
         )))?;
 
+    log::info!(
+        "用户名存在，继续验证密码{}--{}",
+        user_data.pass_word,
+        credentials.pass_word
+    );
+    log::error!(
+        "21212121{:?}",
+        verify(&user_data.pass_word, &credentials.pass_word)
+    );
     // 验证密码（使用 bcrypt 验证加密后的密码）
-    if let Err(_) = verify(&user_data.pass_word, &credentials.pass_word) {
-        return Resp::err(AppError::Unauthorized("用户名或密码错误".into())).to_json_result();
-    }
+    match verify(&user_data.pass_word, &credentials.pass_word) {
+        Ok(is_match) => {
+            if !is_match {
+                return Resp::err(AppError::Unauthorized("密码错误".into())).to_json_result();
+            }
+            // 密码验证成功，继续处理
+        }
+        Err(e) => {
+            log::error!("密码验证失败: {:?}", e);
+            return Resp::err(AppError::InternalServerError(
+                "密码验证过程中发生错误".into(),
+            ))
+            .to_json_result();
+        }
+    };
 
     // 生成JWT令牌
     let token = generate_jwt(
