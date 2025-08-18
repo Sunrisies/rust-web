@@ -2,6 +2,7 @@ use super::articles;
 use super::auth;
 use super::authenticator;
 use super::categories;
+use super::images;
 use super::sse;
 use super::tags;
 use super::user;
@@ -58,6 +59,9 @@ pub fn config_routes(cfg: &mut web::ServiceConfig) {
                 web::scope("/tags")
                     .route("", web::post().to(tags::create_tag))
                     .route("", web::get().to(tags::get_all_tags)),
+            )
+            .service(
+                web::scope("/image").route("", web::get().to(images::create_images)), // .route("", web::get().to(tags::get_all_tags)),
             ),
     );
 }

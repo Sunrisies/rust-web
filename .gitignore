@@ -5,3 +5,4 @@
 .idea
 /src/sql/test_db.sql
 /out
+/migration
