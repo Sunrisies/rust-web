@@ -1,16 +1,15 @@
-use crate::models::sluice_command::{self, Entity as SluiceCommand};
-use crate::models::sluice_data::{self, Entity as SluiceData};
+use crate::models::sluice_command::{self, Column, Entity as SluiceCommand};
 use crate::models::sluice_devices::{self, Entity as SluiceDevicesEntity};
 use crate::models::user::{self, Entity as UserEntity};
+use crate::mqtt_db::{insert_sluice_command, insert_sluice_data};
 use crate::sluice_mqtt::{handle_device_update, subscribe_device};
 use actix_web::web;
-use chrono::Utc;
+use chrono::{Duration as ChronoDuration, TimeZone, Utc};
 use num_traits::cast::FromPrimitive;
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
-
 use sea_orm::{
-    prelude::Decimal, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set,
+    prelude::Decimal, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder,
 };
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -18,8 +17,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
-
 use tokio::task;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub enum MqttError {
@@ -39,85 +38,57 @@ impl std::fmt::Display for MqttError {
         }
     }
 }
-
+// 新增：设备状态监控结构
+#[derive(Debug, Clone)]
+pub struct DeviceStatusMonitor {
+    last_openhgt: Option<Decimal>,
+    change_time: i64,
+    d_topic: String,
+    cancellation_token: Option<CancellationToken>, // 用于取消之前的任务
+}
 pub struct MqttClient {
     client: Arc<Mutex<AsyncClient>>,
     response_channels: Arc<Mutex<HashMap<String, oneshot::Sender<Publish>>>>,
     request_times: Arc<Mutex<HashMap<String, Instant>>>,
-
     // 新增：设备更新通道
     device_update_tx: mpsc::Sender<DeviceUpdate>,
-    // 新增：当前已订阅设备集合
-    subscribed_devices: Arc<RwLock<HashSet<String>>>,
-    // response_listeners: Arc<Mutex<HashMap<String, Instant>>>,
 }
-// 插入闸门命令记录
-pub async fn insert_sluice_command(
-    db_pool: &DatabaseConnection,
-    params: &HashMap<String, String>,
-    topic: &str,
-    payload: &str,
-    push_status: i8,
-) {
-    let user_id = params
-        .get("USER_ID")
-        .and_then(|s| s.parse::<i64>().ok())
-        .map(|id| id as i64)
-        .expect("USER_ID 不能为空");
 
-    let device_id = params.get("DEVICE_ID").map(|s| s.to_string());
-    let device_info = params.get("DEVICE_INFO").map(|s| s.to_string());
-    log::info!("device_id:{:?}", device_id);
-    let command = sluice_command::ActiveModel {
-        user_id: ActiveValue::Set(user_id),
-        device_id: ActiveValue::Set(device_id),
-        topic: ActiveValue::Set(topic.to_string()),
-        create_time: Set(Utc::now().timestamp()),
-        content: Set(payload.to_string()),
-        device_info: Set(device_info),
-        push_status: Set(push_status),
-        ..Default::default()
-    };
-
-    if let Err(e) = SluiceCommand::insert(command).exec(db_pool).await {
-        log::error!("写入命令记录失败: {}", e);
-    }
-}
-// 插入闸门数据记录
-pub async fn insert_sluice_data(db_pool: &DatabaseConnection, topic: &str, payload: &str) {
-    let json: Value = match serde_json::from_str(payload) {
-        Ok(v) => v,
+async fn query_device_command(db_pool: &DatabaseConnection, params: &DeviceStatusMonitor) -> bool {
+    let start_time = Utc
+        .timestamp_opt(params.change_time, 0)
+        .single()
+        .expect("Invalid timestamp")
+        .checked_sub_signed(ChronoDuration::seconds(10))
+        .expect("Timestamp overflow")
+        .timestamp();
+    let end_time = Utc
+        .timestamp_opt(params.change_time, 0)
+        .single()
+        .expect("Invalid timestamp")
+        .checked_add_signed(ChronoDuration::seconds(10))
+        .expect("Timestamp overflow")
+        .timestamp();
+    match SluiceCommand::find()
+        .filter(sluice_command::Column::Topic.eq(&params.d_topic))
+        .filter(Column::CreateTime.gte(start_time))
+        .filter(Column::CreateTime.lte(end_time))
+        .count(db_pool)
+        .await
+    {
+        Ok(count) if count > 0 => {
+            log::info!("查询到 {} 条命令记录", count);
+            return false;
+        }
+        Ok(_) => {
+            log::info!("未查询到命令记录");
+            return true;
+        }
         Err(e) => {
-            log::error!("解析JSON失败: {} - {}", payload, e);
-            return;
+            log::error!("查询命令记录时发生错误: {}", e);
+            return true;
         }
     };
-
-    let sluice_data = sluice_data::ActiveModel {
-        lvll: ActiveValue::Set(json["LVLL"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        lvlh: ActiveValue::Set(json["LVLH"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        ctrlmod: ActiveValue::Set(json["CTRLMOD"].as_i64().map(|i| i as i8)),
-        opensta: ActiveValue::Set(json["OPENSTA"].as_i64().map(|i| i as i8)),
-        openhgt: ActiveValue::Set(
-            json["OPENHGT"]
-                .as_f64()
-                .map(|f| Decimal::from_f64(f).unwrap()),
-        ),
-        lvlb: ActiveValue::Set(json["LVLB"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        lvla: ActiveValue::Set(json["LVLA"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        iccid: ActiveValue::Set(json["ICCID"].as_str().map(|s| s.to_owned())),
-        vbat: ActiveValue::Set(json["VBAT"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        cstamp: ActiveValue::Set(json["CSTAMP"].as_i64()),
-        csq: ActiveValue::Set(json["CSQ"].as_i64().map(|i| i as i32)),
-        lo: ActiveValue::Set(json["LO"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        la: ActiveValue::Set(json["LA"].as_f64().map(|f| Decimal::from_f64(f).unwrap())),
-        sluice_id: ActiveValue::Set(topic.to_string()),
-        ..Default::default()
-    };
-
-    if let Err(e) = SluiceData::insert(sluice_data).exec(db_pool).await {
-        log::error!("写入数据记录失败: {}", e);
-    }
 }
 
 // 定义设备更新消息
@@ -127,6 +98,95 @@ pub enum DeviceUpdate {
     Removed(sluice_devices::Model), // subscribe_topic
     Updated(sluice_devices::Model),
 }
+async fn handle_mqtt_message(
+    p: &Publish,
+    monitors_clone: Arc<Mutex<HashMap<String, DeviceStatusMonitor>>>,
+    db_pool_clone: web::Data<DatabaseConnection>,
+) {
+    let payload = String::from_utf8_lossy(&p.payload);
+    if let Ok(json) = serde_json::from_str::<Value>(&payload) {
+        if let Some(openhgt) = json.get("OPENHGT") {
+            let mut monitors = monitors_clone.lock().await;
+            let cstmp = json
+                .get("CSTAMP")
+                .and_then(|v| v.as_i64())
+                .unwrap_or_else(|| {
+                    // 在这里可以执行一些逻辑来生成默认值
+                    println!("CSTAMP 不存在，使用默认值");
+                    0
+                });
+            let topic = p.topic.clone();
+            let d_topic = format!("D{}", topic);
+            if let Some(monitor) = monitors.get_mut(&d_topic) {
+                let openhgt_str = Some(Decimal::from_f64(openhgt.as_f64().unwrap()).unwrap());
+                // 检查状态是否变化
+                if monitor.last_openhgt != openhgt_str {
+                    if let Some(token) = monitor.cancellation_token.take() {
+                        token.cancel();
+                        log::info!("已取消之前的延时任务: {}", d_topic);
+                    }
+                    // 创建新的取消令牌
+                    let new_token = CancellationToken::new();
+                    monitor.cancellation_token = Some(new_token.clone());
+                    monitor.last_openhgt = openhgt_str;
+                    monitor.change_time = cstmp;
+                    let monitor_clone = monitor.clone();
+                    let monitors_clone = monitors.clone();
+                    tokio::spawn(async move {
+                        tokio::select! {
+                                                       _ = new_token.cancelled() => {
+                                                             log::info!("任务被取消: {}", d_topic);
+                                                         }
+                                                            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                                                      log::info!("延时结束: {}", d_topic);
+                                                              if let Some(monitor) = monitors_clone.get(&d_topic) {
+                                                                         // 检查取消令牌是否仍然是我们的（没有新的任务）
+                                                                      if let Some(token) = &monitor.cancellation_token {
+
+                                                                                                 if token.is_cancelled() {
+                                                     log::info!("任务已过时，跳过执行: {}", d_topic);
+                                                     return;
+                                                 }
+                         if query_device_command(&db_pool_clone, &monitor_clone).await {
+                                                     log::info!("没有数据存储");
+                                                     let content = format!(
+                                                         "{{\"CONTENT\":\"本地操作\",\"OPENHGT\":\"{}\"}}",
+                                                         openhgt_str.unwrap()
+                                                     );
+                                                     let mut params: HashMap<String, String> = HashMap::new();
+                                                     params.insert("topic".to_string(), d_topic.to_string());
+                                                     params.insert("payload".to_string(), content.to_string());
+                                                     params.insert("USER_ID".to_string(), "11".to_string());
+
+                                                     params.insert("DEVICE_ID".to_string(), "".to_string());
+                                                     params.insert("DEVICE_INFO".to_string(), "".to_string());
+
+                                                     insert_sluice_command(
+                                                         &db_pool_clone, &params, &topic, &content, 1,
+                                                     )
+                                                     .await;
+                                                 } else {
+                                                     log::info!("有数据存储");
+                                                 }
+                                                }
+                                               }
+                               }
+                        }
+                    });
+                }
+            } else {
+                let monitor = DeviceStatusMonitor {
+                    last_openhgt: Some(Decimal::from_f64(openhgt.as_f64().unwrap()).unwrap()),
+                    change_time: cstmp,
+                    d_topic: d_topic.clone(),
+                    cancellation_token: None,
+                };
+                monitors.insert(d_topic, monitor);
+            }
+        }
+    }
+}
+
 impl MqttClient {
     pub async fn new(
         db_pool: web::Data<DatabaseConnection>,
@@ -143,15 +203,13 @@ impl MqttClient {
         >::new()));
         let response_channels_clone = Arc::clone(&response_channels);
         let response_listeners = Arc::new(Mutex::new(HashMap::new()));
-        // let listeners_clone = Arc::clone(&response_listeners);
         let request_times = Arc::new(Mutex::new(HashMap::<String, std::time::Instant>::new()));
         let initial_devices = SluiceDevicesEntity::find()
             .order_by_desc(sluice_devices::Column::Id)
             .all(db_pool.as_ref())
             .await
-            .unwrap(); // 处理错误
-                       // 订阅主题
-                       // 新增：设备更新通道
+            .unwrap();
+
         let (device_update_tx, mut device_update_rx) = mpsc::channel(100);
 
         // 新增：当前已订阅设备集合
@@ -168,6 +226,13 @@ impl MqttClient {
         }
         let subscribed_devices_clone = Arc::clone(&subscribed_devices);
         let mut params: HashMap<String, String> = HashMap::new();
+        // 新增：初始化设备状态监控和D主题接收时间记录
+        let device_status_monitors: Arc<Mutex<HashMap<String, DeviceStatusMonitor>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+
+        // 新增：启动定时器检查D主题消息接收状态
+        let device_status_monitors_clone = Arc::clone(&device_status_monitors);
+
         // 后台任务处理 MQTT 消息
         task::spawn(async move {
             loop {
@@ -186,17 +251,19 @@ impl MqttClient {
                                 }
                             }
                         }
+                        let p_clone = p.clone();
+                        let monitors_clone = device_status_monitors_clone.clone();
+                        let db_pool_clone = db_pool.clone();
+                        tokio::spawn(async move {
+                            handle_mqtt_message(&p_clone, monitors_clone, db_pool_clone).await;
+                        });
                         {
                             let mut listeners = response_listeners.lock().await;
 
                             // 如果是 D 开头的命令消息
                             if topic.starts_with("D") {
                                 let response_topic = &topic[1..];
-                                log::info!(
-                                    "收到命令消息，开始监听响应主题: {},{}",
-                                    response_topic,
-                                    payload
-                                );
+
                                 if let Ok(json) = serde_json::from_str::<Value>(&payload) {
                                     if let Some(user) = json.get("USER").and_then(|v| v.as_str()) {
                                         match UserEntity::find()
@@ -251,24 +318,15 @@ impl MqttClient {
                                 if elapsed <= Duration::from_secs(5) {
                                     insert_sluice_command(&db_pool, &params, topic, payload, 1)
                                         .await;
-
-                                    log::info!(
-                                        "✅ 成功收到响应: {} (耗时: {:?}),{},{:?},{:?},{:?}",
-                                        topic,
-                                        elapsed,
-                                        payload,
-                                        params.get("USER_ID"),
-                                        params.get("DEVICE_ID"),
-                                        params.get("DEVICE_INFO"),
-                                    );
                                 } else {
-                                    insert_sluice_command(&db_pool, &params, topic, payload, 0)
-                                        .await;
-                                    log::warn!(
-                                        "⚠️ 收到延迟响应: {} (耗时: {:?}, 超过5秒)",
+                                    insert_sluice_command(
+                                        db_pool.as_ref(),
+                                        &params,
                                         topic,
-                                        elapsed
-                                    );
+                                        payload,
+                                        0,
+                                    )
+                                    .await;
                                 }
                                 params.clear(); // 清空参数
                             }
@@ -278,7 +336,9 @@ impl MqttClient {
                         if p.topic.starts_with("D") {
                             continue;
                         } else {
+                            // let mut monitors = device_status_monitors_clone.lock().await;
                             insert_sluice_data(db_pool.as_ref(), &p.topic, &payload).await;
+                            // 新增：监控OPENSTA字段变化
                         }
                     }
                     Err(e) => {
@@ -294,12 +354,12 @@ impl MqttClient {
                 handle_device_update(&client_clone, &subscribed_devices_clone, update).await;
             }
         });
+
         MqttClient {
             client,
             response_channels,
             request_times,
             device_update_tx,
-            subscribed_devices,
         }
     }
     // 新增：公开方法用于通知设备更新

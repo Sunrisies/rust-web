@@ -24,6 +24,8 @@ async fn main() -> std::io::Result<()> {
     let app_data = web::Data::new(db_pool);
     let notifier = web::Data::new(SseNotifier::new());
     // mqtt_init(app_data.clone()).await;
+    // agrocloud.cn
+    // broker.emqx.io
     let mqtt_client =
         web::Data::new(MqttClient::new(app_data.clone(), "agrocloud.cn", 1883, &client_id).await);
     // 获取服务器地址和端口
