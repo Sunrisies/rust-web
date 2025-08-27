@@ -41,6 +41,8 @@ impl std::fmt::Display for MqttError {
 // 新增：设备状态监控结构
 #[derive(Debug, Clone)]
 pub struct DeviceStatusMonitor {
+    start_openhgt: Option<Decimal>,
+    end_openhgt: Option<Decimal>,
     last_openhgt: Option<Decimal>,
     change_time: i64,
     d_topic: String,
@@ -129,49 +131,56 @@ async fn handle_mqtt_message(
                     let new_token = CancellationToken::new();
                     monitor.cancellation_token = Some(new_token.clone());
                     monitor.last_openhgt = openhgt_str;
+                    monitor.end_openhgt = openhgt_str;
                     monitor.change_time = cstmp;
                     let monitor_clone = monitor.clone();
                     let monitors_clone = monitors.clone();
                     tokio::spawn(async move {
                         tokio::select! {
-                                                       _ = new_token.cancelled() => {
-                                                             log::info!("任务被取消: {}", d_topic);
-                                                         }
-                                                            _ = tokio::time::sleep(Duration::from_secs(10)) => {
-                                                      log::info!("延时结束: {}", d_topic);
-                                                              if let Some(monitor) = monitors_clone.get(&d_topic) {
-                                                                         // 检查取消令牌是否仍然是我们的（没有新的任务）
-                                                                      if let Some(token) = &monitor.cancellation_token {
+                                                    _ = new_token.cancelled() => {
+                                                            log::info!("任务被取消: {}", d_topic);
+                                                        }
+                                                        _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                                                    log::info!("延时结束: {}", d_topic);
+                                                            if let Some(monitor) = monitors_clone.get(&d_topic) {
+                                                                        // 检查取消令牌是否仍然是我们的（没有新的任务）
+                                                                    if let Some(token) = &monitor.cancellation_token {
 
-                                                                                                 if token.is_cancelled() {
-                                                     log::info!("任务已过时，跳过执行: {}", d_topic);
-                                                     return;
-                                                 }
-                         if query_device_command(&db_pool_clone, &monitor_clone).await {
-                                                     log::info!("没有数据存储");
-                                                     let content = format!(
-                                                         "{{\"CONTENT\":\"本地操作\",\"OPENHGT\":\"{}\"}}",
-                                                         openhgt_str.unwrap()
-                                                     );
-                                                     let mut params: HashMap<String, String> = HashMap::new();
-                                                     params.insert("topic".to_string(), d_topic.to_string());
-                                                     params.insert("payload".to_string(), content.to_string());
-                                                     params.insert("USER_ID".to_string(), "11".to_string());
+                                                                                                if token.is_cancelled() {
+                                                    log::info!("任务已过时，跳过执行: {}", d_topic);
+                                                    return;
+                                                                         }
+                                                 if query_device_command(&db_pool_clone, &monitor_clone).await {
+                                                    log::info!("没有数据存储");
+                                                    let (start, end) = match (monitor.start_openhgt, monitor.end_openhgt) {
+                            (Some(s), Some(e)) => (s, e),
+                            _ => panic!("start_openhgt or end_openhgt is None"), // 或给默认值
+                        };
+                                                    let content = format!(
+                                                        "{{\"CONTENT\":\"本地操作\",\"START_OPENHGT\":\"{:?}\",\"END_OPENHGT\":\"{:?}\"}}",
+                                                        start,
+                                                        end
+                                                    );
+                                                    log::info!("发送命令: {}", content);
+                                                    let mut params: HashMap<String, String> = HashMap::new();
+                                                    params.insert("topic".to_string(), d_topic.to_string());
+                                                    params.insert("payload".to_string(), content.to_string());
+                                                    params.insert("USER_ID".to_string(), "11".to_string());
 
-                                                     params.insert("DEVICE_ID".to_string(), "".to_string());
-                                                     params.insert("DEVICE_INFO".to_string(), "".to_string());
+                                                    params.insert("DEVICE_ID".to_string(), "".to_string());
+                                                    params.insert("DEVICE_INFO".to_string(), "".to_string());
 
-                                                     insert_sluice_command(
-                                                         &db_pool_clone, &params, &topic, &content, 1,
-                                                     )
-                                                     .await;
-                                                 } else {
-                                                     log::info!("有数据存储");
-                                                 }
+                                                    insert_sluice_command(
+                                                        &db_pool_clone, &params, &d_topic, &content, 1,
+                                                    )
+                                                    .await;
+                                                    } else {
+                                                        log::info!("有数据存储");
+                                                    }
                                                 }
-                                               }
-                               }
-                        }
+                                                }
+                                                       }
+                                                }
                     });
                 }
             } else {
@@ -180,6 +189,8 @@ async fn handle_mqtt_message(
                     change_time: cstmp,
                     d_topic: d_topic.clone(),
                     cancellation_token: None,
+                    start_openhgt: Some(Decimal::from_f64(openhgt.as_f64().unwrap()).unwrap()),
+                    end_openhgt: None,
                 };
                 monitors.insert(d_topic, monitor);
             }
