@@ -12,19 +12,13 @@ pub fn generate_excel(models: &[sluice_data::SluiceWithUsername]) -> Result<Vec<
     // 写入表头
     let headers = [
         "闸站名称",
-        "前水位(L)",
-        "前水位(H)",
-        "控制模式",
+        "水位高度",
         "开启状态",
-        "开度高度",
-        "后水位(B)",
-        "后水位(A)",
-        "ICCID",
+        "闸门高度",
         "电池电压",
         "信号强度",
-        "经度",
-        "纬度",
-        "时间",
+        "更新时间",
+        "位置坐标",
     ];
 
     for (col, header) in headers.iter().enumerate() {
@@ -55,25 +49,28 @@ pub fn generate_excel(models: &[sluice_data::SluiceWithUsername]) -> Result<Vec<
 
         // 按列顺序写入数据
         worksheet.write(row, 0, &model.sluice_name)?;
-        write_decimal(&mut worksheet, row, 1, &model.lvll)?;
-        write_decimal(&mut worksheet, row, 2, &model.lvlh)?;
-        let value = match model.ctrlmod {
-            Some(0) => "手动",
-            Some(1) => "闸前水位",
-            Some(2) => "闸后水位",
-            _ => "未知", // 如果 ctrlmod 的值不是 0, 1, 或 2，写入 "未知"
+        write_decimal(&mut worksheet, row, 1, &model.lvla)?;
+        let value = match model.opensta {
+            Some(0) => "关闸",
+            Some(1) => "开闸",
+            Some(2) => "停止",
+            _ => "未知",
         };
-        worksheet.write(row, 3, value)?;
-        worksheet.write(row, 4, model.opensta)?;
-        write_decimal(&mut worksheet, row, 5, &model.openhgt)?;
-        write_decimal(&mut worksheet, row, 6, &model.lvlb)?;
-        write_decimal(&mut worksheet, row, 7, &model.lvla)?;
-        worksheet.write(row, 8, model.iccid.as_deref().unwrap_or(""))?;
-        write_decimal(&mut worksheet, row, 9, &model.vbat)?;
-        worksheet.write(row, 10, model.csq)?;
-        write_decimal(&mut worksheet, row, 11, &model.lo)?;
-        write_decimal(&mut worksheet, row, 12, &model.la)?;
-        worksheet.write(row, 13, model.create_time.clone())?;
+        worksheet.write(row, 2, value)?;
+        write_decimal(&mut worksheet, row, 3, &model.openhgt)?;
+        write_decimal(&mut worksheet, row, 4, &model.vbat)?;
+        let csq = match model.csq {
+            Some(csq) => format!("{:?} dBm", csq),
+            None => "".to_string(),
+        };
+        worksheet.write(row, 5, csq)?;
+        worksheet.write(row, 6, model.create_time.clone())?;
+        let lon_and_lat = if let (Some(lo), Some(la)) = (&model.lo, &model.la) {
+            format!("{}, {}", lo, la)
+        } else {
+            "".to_string()
+        };
+        worksheet.write(row, 7, lon_and_lat)?;
     }
 
     // 自动调整列宽
@@ -84,14 +81,8 @@ pub fn generate_excel(models: &[sluice_data::SluiceWithUsername]) -> Result<Vec<
     worksheet.set_column_width(3, 10.0)?;
     worksheet.set_column_width(4, 10.0)?;
     worksheet.set_column_width(5, 10.0)?;
-    worksheet.set_column_width(6, 10.0)?;
-    worksheet.set_column_width(7, 10.0)?;
-    worksheet.set_column_width(9, 10.0)?;
-
-    worksheet.set_column_width(8, 25.0)?;
-    worksheet.set_column_width(10, 15.0)?;
-
-    worksheet.set_column_width(13, 25.0)?;
+    worksheet.set_column_width(6, 20.0)?;
+    worksheet.set_column_width(7, 20.0)?;
 
     let buf = workbook.save_to_buffer()?;
 

@@ -39,6 +39,8 @@ async fn main() -> std::io::Result<()> {
             .allowed_origin("http://127.0.0.1:5502")
             .allowed_origin("http://182.92.243.54:19090")
             .allowed_origin("http://localhost:13000")
+            .allowed_origin("http://ymy.hwwp.top")
+            .allowed_origin("http://ymy.hwwp.top:80")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             .allowed_headers(vec!["Content-Type", "Authorization", "ACCEPT"])
             .supports_credentials()

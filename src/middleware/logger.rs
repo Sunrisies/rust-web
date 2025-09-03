@@ -55,12 +55,12 @@ where
             let res = fut.await?;
 
             let duration = start_time.elapsed();
-            log::error!("Response: {:#?}", res.headers());
-            log::info!(
-                "Response: {} | Time: {:.3}ms",
-                res.status(),
-                duration.as_secs_f64() * 1000.0
-            );
+            // log::error!("Response: {:#?}", res.headers());
+            // log::info!(
+            //     "Response: {} | Time: {:.3}ms",
+            //     res.status(),
+            //     duration.as_secs_f64() * 1000.0
+            // );
 
             Ok(res)
         })
